@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import time
-from shutil import copy as Hcopy
-import streamlit
+import streamlit as st
 #%%
 
 
@@ -20,8 +18,7 @@ Checkbox = ['PTOK','PAL_W','SLAB','HRES']
 Entries = [[Frame,'FRAME'],[Perscr,'RX'],[Blank,'BLANK'],[Lens,'DESIGN']]#,[Prsmprsc,'PRISM']
 Rename = {'PAL_W':'REF','PTOK':'VTHIN','MINCTR':'MTHK'}
 
-    
-'============LED============='    
+
 #Coordinates
 x = np.arange(-42.5,43.0,0.5)
 Y,X = np.meshgrid(x,x)
@@ -29,12 +26,23 @@ R = np.sqrt(X**2 + Y**2)
 Theta = np.arctan(Y/(-X+0.00000001))
 ZT = R-R
 
-'============================='
-'=======[Formula Sheet]======='
-'============================='
-
-'---Optical Formulas---'
 #This is just all the optical formulas
+def SliceComp(Eye,Rx,Z,ZBb,ZF,nCT=2.00,isnt=False):
+    A = Rx['HBOX']
+    B = Rx['VBOX']
+    ED = Rx['FED']
+    dED = np.sqrt(Rx['XDEC']**2 + Rx['YDEC']**2)
+    CT = Rx['BCTHK']
+    x = np.arange(-42.5,43.0,0.5)
+    Thck = nCT - ZF + Z
+    for i in range(171):
+        for j in range(171):
+            Thck[i,j] = round(Thck[i,j],3)
+    t = [Thck[85,int(85 + B + 2*Rx['YDEC'])],Thck[85,int(85 - B + 2*Rx['YDEC'])],Thck[int(85 + A + 2*Rx['XDEC']),85],Thck[int(85 - A + 2*Rx['XDEC']),85]]
+    for i in range(4):
+        t[i] = round(t[i],3)
+    Rx['ISNT'] = t
+    return
 
 def Add_Round(Add):
     NewAdd = round(670.0/(740.0/Add),2)
@@ -66,21 +74,6 @@ def RoundBi(P,ins,N,h,D):
                 Zb[i,j] = Sag(D,rc)
     return Zb-Sag(D,rc)
 
-'''def Blended_Bifocal(P,ins,N):
-    E = 13.2
-    Ri = np.sqrt((X-ins)**2 + (Y-E-5)**2)
-    f = P*np.exp(-(Ri/E)**4)
-    Zb = Sag(Ri,1000*(1-N)/(f+0.00000001))
-
-    #delete from here on (Flat Top)
-    #for i in range(171):
-        #for j in range(171):
-            #if Y[i,j] < 4:
-                #Zb[i,j] = 0
-    #to here
-
-    return Zb'''
-           
 def Decenter_Surface(xdec,ydec):
     x = np.arange(-42.5,43.0,0.5)
     y = np.arange(-42.5,43.0,0.5)
@@ -172,8 +165,6 @@ def Thick_Lens(Index,CT,Power,RF):
 
 def Wrap_Tilt(Rx,Eye):
     S,C,A,W,N,T = Rx['SPH'],Rx['CYL'],Rx['AX'],Rx['PANTO'],Rx['LIND'],Rx['WRAP']
-    '''T was mistakenly put
-    as the wrap and W as the Tilt'''
     T,W,A = np.radians(T),np.radians(W),np.radians(A)
     phi = np.arctan(np.sqrt(np.sin(T)*np.sin(T) + np.tan(W)*np.tan(W))/np.cos(T))
     Tc = (2*N + np.sin(phi)*np.sin(phi))/(2*N*np.cos(phi)*np.cos(phi))
@@ -213,13 +204,9 @@ def Zproj(m,n):
     r = np.sqrt(L[0]**2 + L[1]**2)
     return r
      
-'========================'
-'======[Job Object]======'
-'========================'
 #This is script that plays around with the files
 class Job(str):
     
-    '===File Methods==='
     def __init__(self,str):   
         self.JobN = str
         self.log = ''
@@ -332,96 +319,9 @@ def readlms(name):
     return LMSDict
 
 Lblist = 'LNSM,LAPBASX,LAPCRSX,AXIS,GTHK,PRVM,PRVA,CRIB,FRNT,BCTHK,DIA,BETHK,BHGHT,DBL,HBOX,VBOX'.split(',')
-def orfile(name): 
-    global MAIN
-    global ORF
-    global OR2
-    global Lblist
-    
-    smple = 'sample.or5'      
-    if OR2:
-        smple = 'sample.or2'  
-    with open(MAIN+'/' + smple,'r') as f:
-        form = f.read().split('\n')
-        LMSDatum = readlms(name)
-        if float(LMSDatum['CRIB'][0])<68:
-            LMSDatum['CRIB'][0] = '68'
-        if float(LMSDatum['CRIB'][1])<68:
-            LMSDatum['CRIB'][1] = '68'
-        orname = name + '.or5'
-        if OR2:
-            orname = name + '.or2'
-            LMSDatum['PRVM'][0] = str(float(LMSDatum['PRVM'][0])+0.01)
-            LMSDatum['PRVM'][1] = str(float(LMSDatum['PRVM'][1])+0.01)
-        fillform = []
-        for i,d in enumerate(form):
-            if 1<=i<12:
-                dat = LMSDatum[Lblist[i-1]]
-                if OR2:
-                    if i==1:
-                        dat = LMSDatum['LNSM']
-                    if i==2 or i==3:
-                        dat = [str(-float(LMSDatum[Lblist[i-1]][0])),str(-float(LMSDatum[Lblist[i-1]][1]))]
-                if not OR2:
-                    if i==1:
-                        dat = ['1','0']
-                    if i==2:
-                        dat = ['1','1']
-                    if i==3:
-                        dat = LMSDatum['LNSM']
-                    if i==4 or i == 6 or i==7:
-                        dat = ['0','0']
-                for l in range(2):
-                    dat[l] = float(dat[l])
-                    if int(dat[l])==dat[l]:
-                        dat[l] = str(int(dat[l]))
-                    else:
-                        dat[l] = str(round(dat[l],2))
-                frmtdata = ''
-                for k in range(2):
-                    for j in range(13):
-                        if j >= len(dat[k]):
-                            frmtdata += ' '
-                        else:
-                            frmtdata += dat[k][j]
-                fillform += [d.split('=')[0] + '=  ' + frmtdata[:-1]]
-            else:
-                temp = [d]
-                if 'block_height(0)' in d:
-                    temp = [d.split('=')[0] + '=  ' + str(LMSDatum['BHGHT'][0])]
-                if 'block_height(1)' in d:
-                    temp = [d.split('=')[0] + '=  ' + str(LMSDatum['BHGHT'][1])]
-                if 'DBL(0)' in d:
-                    temp = [d.split('=')[0] + '=  ' + LMSDatum['DBL'][0]]
-                if 'HBOX(0)' in d:
-                    temp = [d.split('=')[0] + '=  ' + LMSDatum['HBOX'][0]]
-                if 'HBOX(1)' in d:
-                    temp = [d.split('=')[0] + '=  ' + LMSDatum['HBOX'][1]]
-                if 'VBOX(0)' in d:
-                    temp = [d.split('=')[0] + '=  ' + LMSDatum['VBOX'][0]]
-                if 'VBOX(1)' in d:
-                    temp = [d.split('=')[0] + '=  ' + LMSDatum['VBOX'][1]]
-                if 'pf_name(0)' in d:
-                    temp = [d.split('=')[0] + '=  "R' + name+'.xyz' + '"']
-                if 'pf_name(1)' in d:
-                    temp = [d.split('=')[0] + '=  "L' + name+'.xyz' + '"']
-                fillform += temp
-        with open(ORF + orname,'w') as g:
-            for txt in fillform:
-                g.write(txt+'\n')
-        f.close()
-        
-        
-'================================='
-'======[Heart of the Design]======'
-'================================='    
+
+         
 def Make_Lens(Rx,Prog,Eye,Lent,Ozone,CT):
-    '''Rx is dictionary import by LDS
-       Prog is the Mold file location
-       Eye = R for right and L for left
-       Lent is the lenticular number
-       Ozone is the size of the optical zone
-       and finally CT is the final thickness'''
     global PRCorr,PLCorr
     x = np.arange(-42.5,43.0,0.5)
     Y,X = np.meshgrid(x,x)
@@ -455,18 +355,6 @@ def Make_Lens(Rx,Prog,Eye,Lent,Ozone,CT):
             Zc = 0
         ZT = Zf + Za + Zc
         #Debugging the Aspheric
-        '''
-        RC = Thick_Lens(Rx['LIND'],CT,-Rx['SPH'],RFC)
-        Pc = 1000*(Rx['TIND']-1)/RC - 1000*(Rx['TIND']-1)/Radius_Sag(10,ZT[85,125])
-        RCc = Radius_Power(Rx['TIND'],Pc)
-        Zr = Sag(R,RCc)
-        ZT = Zf + Zr + Zc   
-        Rf = Radius_Sag(5,Zf[85,75])/1000
-        Rb = Radius_Sag(5,ZT[85,75])/1000
-        print (Rx['LIND'] - 1)*(1/Rf - 1/Rb  + (Rx['LIND']-1)*(CT)/(Rx['LIND'])*Rf*Rb)'''
-        
-    '''if Rx['LENT'] == 1 and abs(Rx['CYL']) >= 2.00:
-        ZT = Aspheric(R,RC,-abs(R/Ozone)**3)'''
     if Rx['LENT'] == 0 or Rx['LENT'] == -1:
         ZT = Sag(R,RC)
     
@@ -661,9 +549,6 @@ def Make_Lens(Rx,Prog,Eye,Lent,Ozone,CT):
     
     return ZT,ZBb,Zf
         
-'============================='
-'==========[Tests]============'
-'============================='
 #Tests wether the design fits
 #^^^speaks for itself
 #Using the surface and the blank, it will
@@ -728,17 +613,14 @@ def SliceTk(tuple):
     XP = np.arange(-42.5,43.0,0.5)/2.0  
 
     if Eye=='L':
-        grphscreen.create_text(100,30,text='R' + str(Rx['JOB']),tags='data')
+        plt.title('Right')
     if Eye=='R':
-        grphscreen.create_text(300,30,text='L' + str(Rx['JOB']),tags='data')
-
-    'ygraphs'
-    draw_layer(x,ZBb[85] + (CT-nCT) + 42.5,'BLUE',Eye)
-    draw_layer(x,Z[85] + 42.5,'RED',Eye)
-    draw_layer(x,ZF[85] - nCT +42.5,'BLUE',Eye)
-
+        plt.title('Left')
     
-    'XCRITICAL POINTSX'
+    plt.plot(x,ZBb[85] + (CT-nCT) + 42.5,color='royalblue')
+    plt.plot(x,Z[85] + 42.5,color='tomato')
+    plt.plot(x,ZF[85] - nCT +42.5,color='royalblue')
+    plt.axis('off')
     Thck = nCT - ZF + Z
     for i in range(171):
         for j in range(171):
@@ -749,49 +631,51 @@ def SliceTk(tuple):
     (0,30,Thck[85,85])]
 
     if Eye == 'R':
-        draw_layer(A/2.0 - Rx['XDEC'] + (x-x),XP-42.5, 'BLACK',Eye)
-        draw_layer(-A/2.0 - Rx['XDEC'] + (x-x),XP-42.5, 'BLACK',Eye)
+        plt.plot(A/2.0 - Rx['XDEC'] + (x-x),XP-42.5, color='BLACK')
+        plt.plot(-A/2.0 - Rx['XDEC'] + (x-x),XP-42.5, color='BLACK')
         TextL+=[(A/2.0 - Rx['XDEC'], -60, Thck[int(85 + A - 2*Rx['XDEC']),85])]
         TextL+=[(-A/2.0 - Rx['XDEC'],-60, Thck[int(85 - A - 2*Rx['XDEC']),85])]
     else:
-        draw_layer( A/2.0 + Rx['XDEC'] + (x-x),XP-42.5, 'BLACK',Eye)
-        draw_layer(-A/2.0 + Rx['XDEC'] + (x-x),XP-42.5, 'BLACK',Eye)
+        plt.plot( A/2.0 + Rx['XDEC'] + (x-x),XP-42.5, color='BLACK')
+        plt.plot(-A/2.0 + Rx['XDEC'] + (x-x),XP-42.5, color='BLACK')
         TextL+=[(A/2.0 + Rx['XDEC'], -60, Thck[int(85 + A + 2*Rx['XDEC']),85])]
         TextL+=[(-A/2.0 + Rx['XDEC'],-60, Thck[int(85 - A + 2*Rx['XDEC']),85])]
         
     for t in TextL:
         if Eye=='L':
-            grphscreen.create_text(pixelm(t[0],t[1])[0],pixelm(t[0],t[1])[1],text = str(t[2]), fill='RED',tags='data')
+            plt.text(t[0],t[1], str(t[2]), color='RED')
         if Eye=='R':
-            grphscreen.create_text(pixelm(t[0],t[1])[0]+200,pixelm(t[0],t[1])[1],text = str(t[2]), fill='RED',tags='data')
+            plt.text(t[0],t[1], str(t[2]), color='RED')
     
-    'LEGEND'
-    Number = 0
-    for i in Rx:
-        if i=='PRSC' or i=='CRIB' or i=='OZONE' or i=='LIND' or i=='FRNT':
-            if i=='FRNT':
-                Rx[i] = round(Rx[i],2)
-            if Rx[i] != 0.00 and i!= 'PRSC':
-                t = (-5,10- Number*10,i + ': ' + str(Rx[i]))
-                Number +=1
-            if i == 'PRSC':
-                t = (-5,10- Number*10,Rx[i])
-                Number +=1
-            if Eye=='L':
-                grphscreen.create_text(pixelm(t[0],t[1])[0],pixelm(t[0],t[1])[1],text = str(t[2]),tags='data')
-            if Eye=='R':
-                grphscreen.create_text(pixelm(t[0],t[1])[0]+200,pixelm(t[0],t[1])[1],text = str(t[2]),tags='data')
+    # 'LEGEND'
+    # Number = 0
+    # for i in Rx:
+    #     if i=='PRSC' or i=='CRIB' or i=='OZONE' or i=='LIND' or i=='FRNT':
+    #         if i=='FRNT':
+    #             Rx[i] = round(Rx[i],2)
+    #         if Rx[i] != 0.00 and i!= 'PRSC':
+    #             t = (-5,10- Number*10,i + ': ' + str(Rx[i]))
+    #             Number +=1
+    #         if i == 'PRSC':
+    #             t = (-5,10- Number*10,Rx[i])
+    #             Number +=1
+    #         if Eye=='L':
+    #             grphscreen.create_text(pixelm(t[0],t[1])[0],pixelm(t[0],t[1])[1],text = str(t[2]),tags='data')
+    #         if Eye=='R':
+    #             grphscreen.create_text(pixelm(t[0],t[1])[0]+200,pixelm(t[0],t[1])[1],text = str(t[2]),tags='data')
                 
     ZBb = np.transpose(ZBb)
     Z = np.transpose(Z)
     ZF = np.transpose(ZF)
-    'xgraphs'
-    draw_layer(-x,ZBb[85] + (CT-nCT)-42.5,'BLUE',Eye)
-    draw_layer(x,Z[85] - 42.5,'RED',Eye)
-    draw_layer(-x,ZF[85] - nCT -42.5, 'BLUE',Eye)
-    'ylines'
-    draw_layer( B/2.0 + Rx['YDEC'] + x-x,XP+42.5, 'BLACK',Eye)
-    draw_layer(-B/2.0 + Rx['YDEC'] + x-x,XP+42.5, 'BLACK',Eye)
+    plt.plot(-x,ZBb[85] + (CT-nCT)-42.5,color='royalblue')
+    plt.plot(x,Z[85] - 42.5,color='tomato')
+    plt.plot(-x,ZF[85] - nCT -42.5, color='royalblue')
+    plt.plot( B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
+    plt.plot(-B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
+    st.set_option('deprecation.showPyplotGlobalUse', False)
+
+
+    st.pyplot()
     return
 
 
@@ -805,7 +689,6 @@ def SliceTk(tuple):
 #eventually we can just turn them off
 
 
-'---Smart Design---'
 def Decenter_Box(J,Eye):
     if Eye =='R':
         J['XDEC'] = (J['HBOX']+J['DBL'])/2.0 - J['IPD']
@@ -890,10 +773,7 @@ def Think(Lens,Rx,Eye):
     #Aspheric Lens Parameters
     CTL = np.arange(Rx['MINCTR'],Rx['BCTHK'],0.25)
     Ozone = (Rx['MBS'] - 8 - abs(Rx['SPH']))/2.0
-    '''if abs(Rx['SPH']) > 4.00 or abs(Rx['CYL']) > 4.00:
-        if Rx['LENT'] != -1:
-            Rx['LENT'] = 1'''
-    
+
     if Rx['WRAP'] > 0 or Rx['PANTO']>0:
         if abs(Rx['SPH'])>4:
             Rx = Wrap_Tilt(Rx,Eye)
@@ -931,11 +811,271 @@ def Think(Lens,Rx,Eye):
             else:
                 ADD +='0'
         PRGMLD = MOLD + CORR +'_'+ IND +'_' + ADD + '.XYZ'
-        if os.path.exists(PRGMLD):
-            pass
+
+    else: 
+        PRGMLD = ''
+
+    #Starts to think
+    Found = 0
+    print('Preliminary Testing\n')
+    for t in OZl:
+        for i in CTL:
+            ZT,ZBb,Zf = Make_Lens(Rx,PRGMLD,Eye,t+2,t,i)
+            T = Thickness_Test(Rx,Zf,ZBb,ZT,i,Eye) 
+            if T=='Too Thin' or T=='Not enough meat':
+                pass
+            else:
+                if Rx['LENT'] == 0:
+                    t = -2
+                ZLIST.append(ZT)
+                Thn.append(T[2])
+                THCK.append(T[1])
+                THCKl.append(T[0])
+                CTl.append(i)
+                LInfo.append([t+2,t])
+                Found+=1
+                break
+        if Found != 0:
+            break
+               
+    #Checks back powers before thinking
+    CT = 2.00
+    RFC = Radius_Power(Rx['TIND'],Rx['FRNT'])
+    RBC = Radius_Power(Rx['TIND'],Rx['BACK'])
+    P = Cross_Cylinder(Rx['SPH'],Rx['CYL'],Rx['AX'],Theta)     
+    RCi = Thick_Lens(Rx['LIND'],CT,P,RFC)
+    RCi = 1000*(Rx['PIND']-1)/RCi
+    
+    #Polisher Colors
+    P = RCi
+    PList = list(P[0])
+    for i in range(171):
+        PList.append(P[i,170])
+    Pback = max(PList)
+    if Pback < 2.5:
+        Rx['PCLR'] = 'GREY'
+    if 2.5 <= Pback < 5.0:
+        Rx['PCLR'] = 'RED'
+    if Pback >= 5.0:
+        Rx['PCLR'] = 'BLUE' 
+        
+    RC = []
+    for i in RCi:
+        for j in i:
+            RC.append(j)
+    
+    if max(RC)>7.00 or min(RC)<2.00:
+        Lens.log += '\nNot Recommended Blank'  
+                                                                                           
+    #Chosing the thinnest design
+    if ZLIST == []: 
+        Lens.log += '\nNo Design Found' 
+        return 'No Design Found'          
+    else:
+        Rf = Radius_Sag(5,Zf[85,75])/1000
+        Rb = Radius_Sag(5,ZT[85,75])/1000
+        Rf = Radius_Sag(5,Zf[75,85])/1000
+        Rb = Radius_Sag(5,ZT[75,85])/1000
+        f  = THCK.index(min(THCK))          
+        ZT = ZLIST[f]
+        THCK = THCK[f]
+        THCKl = THCKl[f]
+        Thn = Thn[f]
+        CT = CTl[f]
+        LInfo = LInfo[f]
+        LInfo[1] = round(LInfo[1],2)
+
+        #Checks the Z-Array
+        for i in ZT:
+            for j in i:
+                if j > 0 or j < 0 or j ==0:
+                    pass        
+                else:
+                    print('NAN Found in Z-Array')
+                    return 'No Design Found'
+        
+        #Assigns thickness to object so i can pass it to thinning
+        if Rx['MBS']+4 < 65:
+            Lens.log +='\n!!!CRIB is less than 65mm!!! (Changed to 65)'
+            Rx['MBS'] = 61
+            Rx['CRIB'] = 65
+        if Eye == 'R':
+            Lens.rCT = CT
+            Lens.rZF = Sag(R,RFC)
+            Lens.rZB = Sag(R,RBC)
+            Lens.rP = RC
+            Lens.rPRX = P
+            Lens.rASX = min(RC)
+            Lens.rSPH = max(RC)
+            Lens.rCrib = Rx['CRIB']
+        if Eye == 'L':
+            Lens.lCT = CT
+            Lens.lZF = Sag(R,RFC)
+            Lens.lZB = Sag(R,RBC)
+            Lens.lP = RC
+            Lens.lPRX = P
+            Lens.lASX = min(RC)
+            Lens.lSPH = max(RC)     
+            Lens.lCrib = Rx['CRIB']
+        #Logs everything that happened in here
+        if Rx['MBS']+4 > Rx['DIA']:
+            Lens.log += '\n!!!CRIB is greater than Lens Diameter!!!'
+        if Rx['WRAP'] > 0 or Rx['PANTO']>0:   
+            Lens.log += '\nWrap_Tilt:' + str(round(Rx['SPH'],2)) +' '+ str(round(Rx['CYL'],2)) + 'x' + str(round(Rx['AX'],2))
+            Rx['PRSC'] = str(round(Rx['SPH'],2)) +'  '+ str(round(Rx['CYL'],2)) + 'x' + str(round(Rx['AX'],2)) +'  '+ str(Rx['ADD'])
+        Lens.log += '\nCross Curves:' + str(round(max(RC),2)) + '/' +  str(round(min(RC),2))
+        if Rx['LENT'] !=0:
+            Lens.log += '\nOzone: ' + str(LInfo[1]*2)
+            Rx['OZONE'] = LInfo[1]*2
+        if PRGMLD[len(MOLD):] != '':
+            Lens.log += '\nMold:' + PRGMLD[len(MOLD):] 
+        
+        Rx['BCOCIN'] = Rx['BCOCIN']/2.0
+        Rx['BCOCUP'] = Rx['BCOCUP']/2.0
+        return ZT
+
+def prl2vect(tup):
+    Rx,Lx,Ry,Ly = tup
+    Rx,Lx,Ry,Ly = float(Rx)+0.01,float(Lx)+0.01,float(Ry),float(Ly)
+    Rm,Lm = np.sqrt(Ry**2 + Rx**2),np.sqrt(Ly**2 + Lx**2)
+    Ra,La = np.degrees(np.arctan(abs(Ry/Rx))),np.degrees(np.arctan(abs(Ly/Lx)))
+    if Rx > 0:
+        Ra = 180-Ra
+    if Lx < 0:
+        La = 180-La
+    if Ry < 0:
+        Ra  = 360 - Ra
+    if Ly < 0:
+        La = 360 - La
+    if Rx==0.01 and Ry==0:
+        Rm,Ra = 0,0
+    if Lx==0.01 and Ly==0:
+        Lm,La = 0,0
+    return [[str(round(Rm,2)),str(round(Lm,2))],[str(int(Ra)),str(int(La))]]
+        
+    
+def prismvalue(addp=False):
+    global JobData
+    global prsmval
+    global PRCorr,PLCorr
+    Ry = float(prsmval[0][0].get())
+    if prsmval[0][1].get() == 'DOWN':
+        Ry = -1*Ry
+        
+    Rx = float(prsmval[1][0].get())+0.00000001
+    if prsmval[1][1].get() == 'OUT':
+        Rx = -1*Rx
+    
+    Ly = float(prsmval[2][0].get())
+    if prsmval[2][1].get() == 'DOWN':
+        Ly = -1*Ly
+    
+    Lx = float(prsmval[3][0].get())+0.0000001
+    if prsmval[3][1].get() == 'IN':
+        Lx = -1*Lx
+        
+    if addp:
+        Rx += PRCorr[0]
+        Ry += -PRCorr[1] 
+        Lx += PLCorr[0]
+        Ly += PLCorr[1]
+    Rm,Lm = np.sqrt(Ry**2 + Rx**2),np.sqrt(Ly**2 + Lx**2)
+    Ra,La = np.degrees(np.arctan(abs(Ry/Rx))),np.degrees(np.arctan(abs(Ly/Lx)))
+    if Rx < 0:
+        Ra = 180-Ra
+    if Lx < 0:
+        La = 180-La
+    if Ry < 0:
+        Ra  = 360 - Ra
+    if Ly < 0:
+        La = 360 - La
+    if addp:
+        Rm += 0.01
+        Lm += 0.01
+    JobData['PRVA'] = [str(int(Ra)),str(int(La))]
+    JobData['PRVM'] = [str(round(Rm,2)),str(round(Lm,2))]  
+    return
+
+def Think(Lens,Rx,Eye):
+    '''
+    Makes every possible lens and returns
+    the thinnest design
+    
+    returns the thickest point, the CT, and Z
+    and logs everything in object log
+    '''
+    
+    #Plus cyl conversion
+    if Rx['CYL'] > 0:
+        Rx['SPH'] += Rx['CYL']
+        Rx['CYL'] = (-1)*Rx['CYL']
+        if Rx['AX'] > 90:
+            Ctemp = -90 
+        if Rx['AX'] <= 90:
+            Ctemp = 90
+        Rx['AX'] += Ctemp
+    
+    #LDS Corrections
+    TempDec = (Rx['HBOX'] + Rx['DBL'])/2.0 - Rx['IPD']
+    Rx['MBS'] = 2*abs(TempDec) + Rx['FED']
+    Rx['CRIB'] = Rx['MBS'] + 4 - 2*abs(Rx['BCOCIN'])
+    if Rx['CRIB'] > Rx['DIA']:
+        Rx['CRIB'] = Rx['DIA']
+        if TempDec == 0:
+            Rx['BCOCIN'] = -((Rx['CRIB']-4-Rx['MBS'])/2.0)
         else:
-            print('Mold does not exist')
-            return 'No Design Found'
+            Rx['BCOCIN'] = -((Rx['CRIB']-4-Rx['MBS'])/2.0)*(TempDec/abs(TempDec))
+        print('WARNING!!! BCOCIN is now ' + str(Rx['BCOCIN'])+' !!! WARNING')
+    if Rx['FED'] < Rx['HBOX']:
+        print('FED smaller than HBOX')
+        return 'No Design Found'
+    Rx['FRNT'] += 0.01
+
+    Rx['BCOCIN'] = 2*Rx['BCOCIN']
+    Rx['BCOCUP'] = 2*Rx['BCOCUP']
+    
+    #Aspheric Lens Parameters
+    CTL = np.arange(Rx['MINCTR'],Rx['BCTHK'],0.25)
+    Ozone = (Rx['MBS'] - 8 - abs(Rx['SPH']))/2.0
+
+    if Rx['WRAP'] > 0 or Rx['PANTO']>0:
+        if abs(Rx['SPH'])>4:
+            Rx = Wrap_Tilt(Rx,Eye)
+            
+    ZLIST = []
+    Thn = []
+    THCK = []
+    THCKl = []
+    CTl = []
+    if Rx['OZONE'] ==0:
+    	OZl = [Ozone,22]
+    else:
+        OZl = [Rx['OZONE']/2.0, Ozone, 22]
+    LInfo = []
+    
+    #Desides what mold to use
+    #if Rx['SEGHT'] <= 24:
+    MOLD = 'Molds'
+    CORR ='MC15'
+    if Rx['LNSEN'] == 'MC17':
+        CORR ='MC17'
+    if Rx['LNSEN'] == 'MC18':
+        CORR ='MC18'
+    if abs(Rx['ADD']) > 0 and Rx['ROUND'] == 0:
+        if Rx['LIND'] == 1.74 or Rx['LIND'] == 1.740:
+            IND = str(1.670)
+            ADD = str(Add_Round(abs(Rx['ADD'])))
+        else:
+            IND = str(Rx['LIND'])
+            ADD = str(abs(Rx['ADD']))
+        while len(IND)<5:
+            IND +='0'
+        while len(ADD)<4:
+            if len(ADD)==1:
+                ADD +='.'
+            else:
+                ADD +='0'
+        PRGMLD = MOLD + CORR +'_'+ IND +'_' + ADD + '.XYZ'
     else: 
         PRGMLD = ''
 
@@ -1058,69 +1198,142 @@ def Think(Lens,Rx,Eye):
         Rx['BCOCUP'] = Rx['BCOCUP']/2.0
         return ZT
     
+def dojob(LDS):
+        Lens = Job('')
+        Lens.__impLDS__(LDS)
+               
+        #Decenter the Box here
+        Decenter_Box(Lens.RightRx,'R')
+        Decenter_Box(Lens.LeftRx,'L')
+        
+        #Right
+        Lens.log += '\n\n-Right-'
+        Lens.ZR = Think(Lens,Lens.RightRx,'R')
+        if Lens.ZR == 'No Design Found':
+            print('No Design Found')
+            return
+            
+        #Left
+        Lens.log += '\n\n-Left-'
+        Lens.ZL = Think(Lens,Lens.LeftRx,'L')
+        if Lens.ZL == 'No Design Found':
+            print('No Design Found')
+            return
+        
+        if Lens.RightRx['ADD'] > 0 and Lens.LeftRx['ADD'] > 0 and Lens.RightRx['ROUND'] == 0 and Lens.LeftRx['ROUND'] == 0:
+            if Lens.RightRx['PTOK'] !=0 and Lens.RightRx['PRVM'] ==0 and Lens.LeftRx['PRVM']==0:
+                print('Initiating Prism Thinning...')
+                SliceComp('R',Lens.RightRx,Lens.ZR,Lens.rZB,Lens.rZF,nCT=Lens.rCT,isnt=True)
+                SliceComp('L',Lens.LeftRx,Lens.ZL,Lens.lZB,Lens.lZF,nCT=Lens.lCT,isnt=True)
+                
+                isntR = Lens.RightRx['ISNT']
+                isntL = Lens.LeftRx['ISNT']
+                Rightdz = isntR[1] - isntR[0]
+                Leftdz = isntL[1] - isntL[0]
+                
+                right = True
+                if abs(Rightdz) > abs(Leftdz):
+                    right = False
+                    
+                PrismAng = 90
+                if right and Rightdz > 0:
+                    PrismAng = 270
+                if not right and Leftdz > 0:
+                    PrismAng = 270
+                
+                if right:
+                    diffZr = Prism(1,PrismAng,Lens.RightRx['LIND'],Lens.ZR,X,Y) #- Lens.ZR
+                    SliceComp('R',Lens.RightRx,diffZr,Lens.rZB,Lens.rZF,nCT=Lens.rCT,isnt=True)
+                    isntR = Lens.RightRx['ISNT']
+                    Rightdzp = isntR[1] - isntR[0]
+                    prismdz = Rightdzp - Rightdz
+                    PrismCalc = abs(Rightdz/prismdz)
+                else:
+                    diffZl = Prism(1,PrismAng,Lens.LeftRx['LIND'],Lens.ZL,X,Y) #- Lens.ZL
+                    SliceComp('L',Lens.LeftRx,diffZl,Lens.lZB,Lens.lZF,nCT=Lens.lCT,isnt=True)
+                    isntL = Lens.LeftRx['ISNT']
+                    Leftdzp = isntL[1] - isntL[0]
+                    prismdz = Leftdzp - Leftdz
+                    PrismCalc = abs(Leftdz/prismdz)
+                
+                if Leftdz*Rightdz < 0:  
+                    PrismCalc = 0
+                    
+                Lens.ZR = Prism(PrismCalc,PrismAng,Lens.RightRx['LIND'],Lens.ZR,X,Y)
+                Lens.ZL = Prism(PrismCalc,PrismAng,Lens.LeftRx['LIND'],Lens.ZL,X,Y)
+                Lens.rCT = Lens.RightRx['MINCTR']
+                Lens.lCT = Lens.LeftRx['MINCTR']
+                Tfr = Thickness_Test(Lens.RightRx,Lens.rZF,Lens.rZB,Lens.ZR,Lens.rCT,'R')
+                Tfl = Thickness_Test(Lens.LeftRx,Lens.lZF,Lens.lZB,Lens.ZL,Lens.lCT,'L')
+                while Tfr == 'Too Thin':
+                    Lens.rCT += 0.1
+                    Tfr = Thickness_Test(Lens.RightRx,Lens.rZF,Lens.rZB,Lens.ZR,Lens.rCT,'R')
+                while Tfl == 'Too Thin':
+                    Lens.lCT += 0.1
+                    Tfl = Thickness_Test(Lens.LeftRx,Lens.lZF,Lens.lZB,Lens.ZL,Lens.lCT,'L')
+                        
+        #Slab-Off
+        if Lens.RightRx['SLAB'] != 0 or Lens.LeftRx['SLAB'] != 0:
+            print('Adding Slab...')
+            if Lens.RightRx['SLAB'] < 5 or Lens.LeftRx['SLAB'] < 5:
+                Lens.RightRx['SLAB'] = 5
+                Lens.LeftRx['SLAB'] = 5
+            PRSM = (Lens.rPRX[85,170] - Lens.lPRX[85,170])*0.5*0.8
+            Lens.ZR = Slab(Lens.ZR,-0.5*PRSM,Lens.RightRx['LIND'],Lens.RightRx['SLAB']+0.5)
+            Lens.ZL = Slab(Lens.ZL,0.5*PRSM,Lens.LeftRx['LIND'],Lens.LeftRx['SLAB']+0.5)
+            Lens.ZR = Slab(Lens.ZR,-0.5*PRSM,Lens.RightRx['LIND'],Lens.RightRx['SLAB'])
+            Lens.ZL = Slab(Lens.ZL,0.5*PRSM,Lens.LeftRx['LIND'],Lens.LeftRx['SLAB'])
 
 
+        SliceTkR = ('R',Lens.RightRx,Lens.ZR,Lens.rZB,Lens.rZF,Lens.rCT)
+        #if Lens.LeftRx['PAL_HT'] !=0:
+        SliceTkL = ('L',Lens.LeftRx,Lens.ZL,Lens.lZB,Lens.lZF,Lens.lCT)
+        return SliceTkR,SliceTkL
 
-'--------COMPUTATIONS--------'
-def prl2vect(tup):
-    Rx,Lx,Ry,Ly = tup
-    Rx,Lx,Ry,Ly = float(Rx)+0.01,float(Lx)+0.01,float(Ry),float(Ly)
-    Rm,Lm = np.sqrt(Ry**2 + Rx**2),np.sqrt(Ly**2 + Lx**2)
-    Ra,La = np.degrees(np.arctan(abs(Ry/Rx))),np.degrees(np.arctan(abs(Ly/Lx)))
-    if Rx > 0:
-        Ra = 180-Ra
-    if Lx < 0:
-        La = 180-La
-    if Ry < 0:
-        Ra  = 360 - Ra
-    if Ly < 0:
-        La = 360 - La
-    if Rx==0.01 and Ry==0:
-        Rm,Ra = 0,0
-    if Lx==0.01 and Ly==0:
-        Lm,La = 0,0
-    return [[str(round(Rm,2)),str(round(Lm,2))],[str(int(Ra)),str(int(La))]]
-        
-    
-def prismvalue(addp=False):
-    global JobData
-    global prsmval
-    global PRCorr,PLCorr
-    Ry = float(prsmval[0][0].get())
-    if prsmval[0][1].get() == 'DOWN':
-        Ry = -1*Ry
-        
-    Rx = float(prsmval[1][0].get())+0.00000001
-    if prsmval[1][1].get() == 'OUT':
-        Rx = -1*Rx
-    
-    Ly = float(prsmval[2][0].get())
-    if prsmval[2][1].get() == 'DOWN':
-        Ly = -1*Ly
-    
-    Lx = float(prsmval[3][0].get())+0.0000001
-    if prsmval[3][1].get() == 'IN':
-        Lx = -1*Lx
-        
-    if addp:
-        Rx += PRCorr[0]
-        Ry += -PRCorr[1] 
-        Lx += PLCorr[0]
-        Ly += PLCorr[1]
-    Rm,Lm = np.sqrt(Ry**2 + Rx**2),np.sqrt(Ly**2 + Lx**2)
-    Ra,La = np.degrees(np.arctan(abs(Ry/Rx))),np.degrees(np.arctan(abs(Ly/Lx)))
-    if Rx < 0:
-        Ra = 180-Ra
-    if Lx < 0:
-        La = 180-La
-    if Ry < 0:
-        Ra  = 360 - Ra
-    if Ly < 0:
-        La = 360 - La
-    if addp:
-        Rm += 0.01
-        Lm += 0.01
-    JobData['PRVA'] = [str(int(Ra)),str(int(La))]
-    JobData['PRVM'] = [str(round(Rm,2)),str(round(Lm,2))]  
-    return
-    
+#st.write('# MCLED #')  
+col1,col2 = st.columns(2)
+
+if 'show' not in st.session_state:
+    RightEye,LeftEye = dojob('90008')
+    with col1:
+        SliceTk(RightEye)
+
+    with col2:
+        SliceTk(LeftEye)
+
+else:
+    pass
+
+
+col1,col2,col3,col4 = st.columns(4)
+
+with col1:
+    with st.expander('Frame',expanded=False):
+        a,b = st.columns(2)
+        for f in Frame:
+            with a:
+                st.text_input(f,key=f)
+
+with col2: 
+    with st.expander('Rx',expanded=False):
+        a,b = st.columns(2)
+        for f in Perscr[:-2]:
+            with a:
+                st.text_input(f,key=f+'r')
+            with b:
+                st.text_input(' ',key=f+'l')
+
+with col3: 
+    with st.expander('Blank',expanded=False):
+        a,b = st.columns(2)
+        for f in Blank:
+            with a:
+                st.text_input(f,key=f+'r')
+            with b:
+                st.text_input(' ',key=f+'l')
+with col4:
+    with st.expander('Design',expanded=False):
+        a,b = st.columns(2)
+        with a:
+            mthk = st.text_input('MTHK')
+    show = st.button('Show')
