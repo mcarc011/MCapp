@@ -217,7 +217,7 @@ class Job(str):
         #log is whats going into the LMS
         
     def __impLDS__(self,d):
-        F = open(d + str(self.JobN) + '.LDS','r')
+        F = open(d + '.LDS','r')
         S = F.readlines()
         for i in S:            
             try:
