@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
-import os
-import time
 import json
 import requests
 from Crypto.Cipher import AES
