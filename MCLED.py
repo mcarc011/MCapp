@@ -3,7 +3,7 @@ import numpy as np
 import streamlit as st
 import json
 import requests
-from crypto.Cipher import AES
+from Crypto.Cipher import AES
 import base64
 from numpy import array
 #%%
