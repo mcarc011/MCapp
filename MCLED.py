@@ -17,13 +17,13 @@ ZT = R-R
 
 def downloadjobs(jobname):
     global ZT
-    start,final = str(int(jobname)-1),str(int(jobname)+1)
-    f = open('mcdkey.env','r')
-    info = f.readlines()
-    f.close()
-    connectiondata = [eval(info[i].split('=')[1]) for i in range(4)]
+    global username
+    global password
+    global mainurl
+    global mckey
 
-    username,password,url,key = tuple(connectiondata)
+    start,final = str(int(jobname)-1),str(int(jobname)+1)
+    username,password,url,key = username,password,mainurl,mckey
     aeskey = bytes.fromhex(key)
     auth = (username,password)
     response = requests.get(url, auth=auth)
