@@ -1,4 +1,4 @@
 numpy
 matplotlib==3.5.1
-Crypto==1.0.0
+pycryptodome
 requests
