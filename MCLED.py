@@ -143,7 +143,7 @@ Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
 ZT = 90 - np.sqrt(90**2 - R**2)
 BrEye = 'R',Rx,ZT,ZT,ZT,2.5
-BrEye = 'L',Rx,ZT,ZT,ZT,2.5
+BlEye = 'L',Rx,ZT,ZT,ZT,2.5
 
 if 'show' not in st.session_state:
     with col1:
