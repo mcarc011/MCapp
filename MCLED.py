@@ -17,13 +17,8 @@ ZT = R-R
 
 def downloadjobs(jobname):
     global ZT
-    global username
-    global password
-    global mainurl
-    global mckey
-
     start,final = str(int(jobname)-1),str(int(jobname)+1)
-    username,password,url,key = username,password,mainurl,mckey
+    username,password,url,key = st.secrets['username'],st.secrets['password'],st.secrets['mainurl'],st.secrets['mckey'],
     aeskey = bytes.fromhex(key)
     auth = (username,password)
     response = requests.get(url, auth=auth)
