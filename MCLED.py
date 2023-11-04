@@ -142,13 +142,14 @@ col1,col2 = st.columns(2)
 Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
 ZT = 90 - np.sqrt(90**2 - R**2)
-BEye = 'R',Rx,ZT,ZT,ZT,2.5
+BrEye = 'R',Rx,ZT,ZT,ZT,2.5
+BrEye = 'L',Rx,ZT,ZT,ZT,2.5
 
 if 'show' not in st.session_state:
     with col1:
-        SliceTk(BEye)
+        SliceTk(BrEye)
     with col2:
-        SliceTk(BEye)
+        SliceTk(BlEye)
 
 if 'show' in st.session_state:
     jobv = st.session_state['show']
