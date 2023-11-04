@@ -1,6 +1,5 @@
 numpy
 matplotlib==3.5.1
-base64
 Crypto
 json
 requests
