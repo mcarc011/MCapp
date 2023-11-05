@@ -140,7 +140,7 @@ def SliceTk(tuple):
 
 
 #st.write('# MCLED #')  
-col1,col2 = st.columns(2)
+col1,col2,col3 = st.columns(3)
 
 Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
@@ -163,7 +163,7 @@ if 'show' in st.session_state:
         SliceTk(LeftEye)
 
 
-with col2:
+with col3:
     jobn = st.text_input('Job Number')
     plot = st.button('Plot')
 
