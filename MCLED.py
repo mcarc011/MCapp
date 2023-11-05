@@ -162,10 +162,8 @@ if 'show' in st.session_state:
 
 
 with col2:
-    col3,col4 = st.columns(2)
-    with col4:
-        jobn = st.text_input('Job Number')
-        plot = st.button('Plot')
+    jobn = st.text_input('Job Number')
+    plot = st.button('Plot')
 
 if plot:
     st.session_state['show'] = jobn
