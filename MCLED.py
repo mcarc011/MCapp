@@ -68,7 +68,7 @@ def SliceTk(tuple):
     B = Rx['VBOX']
     ED = Rx['FED']
     dED = np.sqrt(Rx['XDEC']**2 + Rx['YDEC']**2)
-    plt.figure(figsize=(20,20))
+    plt.figure(figsize=(10,10))
     if Eye=='L':
         Eye='R'
     else:
