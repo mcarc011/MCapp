@@ -133,9 +133,9 @@ def SliceTk(tuple):
 #eventually we can just turn them off
 
 
-#st.write('# MCLED #')  
+st.write('# VU Graph #')  
 col1,col2 = st.columns(2)
-tab1,tab2,tab3 = st.tabs(['Right','Left','Rx'])
+tab1,tab2,tab3 = st.tabs(['RIGHT','LEFT','PRSC'])
 
 Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
