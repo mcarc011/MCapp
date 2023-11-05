@@ -104,9 +104,9 @@ def SliceTk(tuple):
         
     for t in TextL:
         if Eye=='L':
-            plt.text(t[0],t[1], str(t[2]), color='RED')
+            plt.text(t[0],t[1], str(t[2]), color='RED', fontsize='x-large')
         if Eye=='R':
-            plt.text(t[0],t[1], str(t[2]), color='RED')
+            plt.text(t[0],t[1], str(t[2]), color='RED', fontsize='x-large')
       
     ZBb = np.transpose(ZBb)
     Z = np.transpose(Z)
@@ -135,7 +135,7 @@ def SliceTk(tuple):
 
 #st.write('# MCLED #')  
 col1,col2 = st.columns(2)
-tab1,tab2 = st.tabs(['Right','Left'])
+tab1,tab2,tab3 = st.tabs(['Right','Left','Rx'])
 
 Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
@@ -149,6 +149,8 @@ with col2:
             SliceTk(BrEye)
         with tab2:
             SliceTk(BlEye)
+        with tab3:
+            st.write(Rx)
 
     if 'show' in st.session_state:
         jobv = st.session_state['show']
@@ -157,6 +159,8 @@ with col2:
             SliceTk(RightEye)
         with tab2:
             SliceTk(LeftEye)
+        with tab3:
+            st.write(Rx)
 
 
 with col2:
