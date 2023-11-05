@@ -77,11 +77,7 @@ def SliceTk(tuple):
     x = np.arange(-42.5,43.0,0.5)
     XP = np.arange(-42.5,43.0,0.5)/2.0  
 
-    if Eye=='L':
-        plt.title('Right')
-    if Eye=='R':
-        plt.title('Left')
-    
+   
     plt.plot(x,ZBb[85] + (CT-nCT) + 42.5,color='royalblue')
     plt.plot(x,Z[85] + 42.5,color='tomato')
     plt.plot(x,ZF[85] - nCT +42.5,color='royalblue')
@@ -138,7 +134,8 @@ def SliceTk(tuple):
 
 
 #st.write('# MCLED #')  
-col1,col2,col3 = st.columns(3)
+col1,col2 = st.columns(2)
+tab1,tab2 = st.tabs(['Left','Right'])
 
 Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
@@ -146,22 +143,23 @@ ZT = 90 - np.sqrt(90**2 - R**2)
 BrEye = 'R',Rx,ZT,ZT,ZT,2.5
 BlEye = 'L',Rx,ZT,ZT,ZT,2.5
 
-if 'show' not in st.session_state:
-    with col1:
-        SliceTk(BrEye)
-    with col2:
-        SliceTk(BlEye)
+with col2:
+    if 'show' not in st.session_state:
+        with tab1:
+            SliceTk(BrEye)
+        with tab2:
+            SliceTk(BlEye)
 
-if 'show' in st.session_state:
-    jobv = st.session_state['show']
-    RightEye,LeftEye = downloadjobs(jobv)
-    with col1:
-        SliceTk(RightEye)
-    with col2:
-        SliceTk(LeftEye)
+    if 'show' in st.session_state:
+        jobv = st.session_state['show']
+        RightEye,LeftEye = downloadjobs(jobv)
+        with tab1:
+            SliceTk(RightEye)
+        with tab2:
+            SliceTk(LeftEye)
 
 
-with col3:
+with col2:
     jobn = st.text_input('Job Number')
     plot = st.button('Plot')
 
