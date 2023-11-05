@@ -158,7 +158,7 @@ with col2:
         RightEye,LeftEye = downloadjobs(jobv)
         Rx = {}
         for key in RightEye[1]:
-            Rx[key] = {RightEye[1][key],LeftEye[1][key]}
+            Rx[key] = [RightEye[1][key],LeftEye[1][key]]
         with tab1:
             SliceTk(RightEye)
         with tab2:
