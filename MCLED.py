@@ -121,6 +121,7 @@ def SliceTk(tuple):
     plt.plot( B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     plt.plot(-B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     plt.xlim(-85,85)
+    plt.ylim(-85,85)
     st.set_option('deprecation.showPyplotGlobalUse', False)
 
 
