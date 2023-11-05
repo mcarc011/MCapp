@@ -158,7 +158,8 @@ with col2:
         jobv = st.session_state['show']
         RightEye,LeftEye = downloadjobs(jobv)
         for key in RightEye[1]:
-            Rx[key] = str(RightEye[1][key])+','+str(LeftEye[1][key])
+            if key in showdat:
+                Rx[key] = str(RightEye[1][key])+','+str(LeftEye[1][key])
         with tab1:
             SliceTk(RightEye)
         with tab2:
