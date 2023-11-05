@@ -135,7 +135,7 @@ def SliceTk(tuple):
 
 #st.write('# MCLED #')  
 col1,col2 = st.columns(2)
-tab1,tab2 = st.tabs(['Left','Right'])
+tab1,tab2 = st.tabs(['Right','Left'])
 
 Rx = {}
 Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
