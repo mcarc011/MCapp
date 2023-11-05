@@ -143,6 +143,7 @@ ZT = 90 - np.sqrt(90**2 - R**2)
 BrEye = 'R',Rx,ZT,ZT,ZT,2.5
 BlEye = 'L',Rx,ZT,ZT,ZT,2.5
 
+showdat = ['IPD','PRVM','PRVA','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB','PRSC','ISNT']
 with col2:
     if 'show' not in st.session_state:
         with tab1:
@@ -158,7 +159,12 @@ with col2:
         RightEye,LeftEye = downloadjobs(jobv)
         Rx = {}
         for key in RightEye[1]:
-            Rx[key] = [RightEye[1][key],LeftEye[1][key]]
+            if key in showdat:
+                if key=='PRSC':
+                    Rx['aRX'] = RightEye[1][key]
+                else:
+                    Rx[key] = str(RightEye[1][key])+','+str(LeftEye[1][key])
+
         with tab1:
             SliceTk(RightEye)
         with tab2:
