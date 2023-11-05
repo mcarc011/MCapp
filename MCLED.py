@@ -143,7 +143,7 @@ ZT = 90 - np.sqrt(90**2 - R**2)
 BrEye = 'R',Rx,ZT,ZT,ZT,2.5
 BlEye = 'L',Rx,ZT,ZT,ZT,2.5
 
-showdat = ['IPD','PRVM','PRVA','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB','ISNT']
+showdat = ['IPD','PRVM','PRVA','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
 with col2:
     if 'show' not in st.session_state:
         with tab1:
