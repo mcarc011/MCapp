@@ -150,27 +150,21 @@ with col2:
         with tab2:
             SliceTk(BlEye)
         with tab3:
-            colr,coll = st.columns(2)
-            with colr:
-                st.write(Rx)
-            with coll:
-                st.write(Rx)
+            st.write(Rx)
 
 
     if 'show' in st.session_state:
         jobv = st.session_state['show']
         RightEye,LeftEye = downloadjobs(jobv)
+        Rx = {}
+        for key in RightEye[1]:
+            Rx[key] = {RightEye[1][key],LeftEye[1][key]}
         with tab1:
             SliceTk(RightEye)
         with tab2:
             SliceTk(LeftEye)
         with tab3:
-            colr,coll = st.columns(2)
-            with colr:
-                st.write(RightEye[1])
-            with coll:
-                st.write(LeftEye[1])
-
+            st.write(Rx)
 
 with col2:
     jobn = st.text_input('Job Number')
