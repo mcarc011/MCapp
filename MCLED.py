@@ -104,9 +104,9 @@ def SliceTk(tuple):
         
     for t in TextL:
         if Eye=='L':
-            plt.text(t[0],t[1], str(t[2]), color='RED', fontsize='x-large')
+            plt.text(t[0],t[1], str(t[2]), color='RED', fontsize='xx-large')
         if Eye=='R':
-            plt.text(t[0],t[1], str(t[2]), color='RED', fontsize='x-large')
+            plt.text(t[0],t[1], str(t[2]), color='RED', fontsize='xx-large')
       
     ZBb = np.transpose(ZBb)
     Z = np.transpose(Z)
@@ -150,7 +150,12 @@ with col2:
         with tab2:
             SliceTk(BlEye)
         with tab3:
-            st.write(Rx)
+            colr,coll = st.columns(2)
+            with colr:
+                st.write(Rx)
+            with coll:
+                st.write(Rx)
+
 
     if 'show' in st.session_state:
         jobv = st.session_state['show']
@@ -160,7 +165,11 @@ with col2:
         with tab2:
             SliceTk(LeftEye)
         with tab3:
-            st.write(Rx)
+            colr,coll = st.columns(2)
+            with colr:
+                st.write(RightEye[1])
+            with coll:
+                st.write(LeftEye[1])
 
 
 with col2:
