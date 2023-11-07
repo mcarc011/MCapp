@@ -138,6 +138,18 @@ if 'show' not in st.session_state:
     RightEye = 'R',Rx,ZT,ZT,ZT,2.5
     LeftEye = 'L',Rx,ZT,ZT,ZT,2.5
 
+else:
+    Rx = {}
+    RightEye,LeftEye = downloadjobs(jobn)
+    showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
+    for key in RightEye[1]:
+        if key in showdat:
+            if key == 'CRIB':
+                Rx[key] = str(round(RightEye[1][key],2))+', '+str(round(LeftEye[1][key],2))
+            else:
+                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
+
+
 with col2:
     with tab1:
         SliceTk(RightEye)
@@ -149,14 +161,3 @@ with col2:
 with col2:
     jobn = st.text_input('Job Number')
     plot = st.button('Plot',on_click=updategraph)
-
-if plot:
-    Rx = {}
-    RightEye,LeftEye = downloadjobs(jobn)
-    showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
-    for key in RightEye[1]:
-        if key in showdat:
-            if key == 'CRIB':
-                Rx[key] = str(round(RightEye[1][key],2))+', '+str(round(LeftEye[1][key],2))
-            else:
-                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
