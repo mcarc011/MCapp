@@ -124,7 +124,7 @@ def SliceTk(tuple):
 
 
 def updategraph():
-    st.session_state['show'] = jobn
+    st.session_state['show'] = True
 
 
 st.write('# VU Graph #')  
