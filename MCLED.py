@@ -149,7 +149,6 @@ else:
             else:
                 Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
 
-
 with col2:
     with tab1:
         SliceTk(RightEye)
