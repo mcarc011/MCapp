@@ -125,16 +125,7 @@ def SliceTk(tuple):
 
 def updategraph():
     st.session_state['show'] = jobn
-    print(jobn)
-    RightEye,LeftEye = downloadjobs(jobn)
-    Rx = {}
-    showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
-    for key in RightEye[1]:
-        if key in showdat:
-            if key == 'CRIB':
-                Rx[key] = str(round(RightEye[1][key],2))+', '+str(round(LeftEye[1][key],2))
-            else:
-                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
+
 
 st.write('# VU Graph #')  
 col1,col2 = st.columns(2)
@@ -159,3 +150,13 @@ with col2:
     jobn = st.text_input('Job Number')
     plot = st.button('Plot',on_click=updategraph)
 
+if plot:
+    Rx = {}
+    RightEye,LeftEye = downloadjobs(jobn)
+    showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
+    for key in RightEye[1]:
+        if key in showdat:
+            if key == 'CRIB':
+                Rx[key] = str(round(RightEye[1][key],2))+', '+str(round(LeftEye[1][key],2))
+            else:
+                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
