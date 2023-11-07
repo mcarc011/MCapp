@@ -125,7 +125,15 @@ def SliceTk(tuple):
 
 def updategraph():
     st.session_state['show'] = True
-
+    Rx = {}
+    RightEye,LeftEye = downloadjobs(jobn)
+    showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
+    for key in RightEye[1]:
+        if key in showdat:
+            if key == 'CRIB':
+                Rx[key] = str(round(RightEye[1][key],2))+', '+str(round(LeftEye[1][key],2))
+            else:
+                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
 
 st.write('# VU Graph #')  
 col1,col2 = st.columns(2)
@@ -137,17 +145,6 @@ if 'show' not in st.session_state:
     ZT = 90 - np.sqrt(90**2 - R**2)
     RightEye = 'R',Rx,ZT,ZT,ZT,2.5
     LeftEye = 'L',Rx,ZT,ZT,ZT,2.5
-
-else:
-    Rx = {}
-    RightEye,LeftEye = downloadjobs(jobn)
-    showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
-    for key in RightEye[1]:
-        if key in showdat:
-            if key == 'CRIB':
-                Rx[key] = str(round(RightEye[1][key],2))+', '+str(round(LeftEye[1][key],2))
-            else:
-                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
 
 with col2:
     with tab1:
