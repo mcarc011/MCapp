@@ -125,6 +125,7 @@ def SliceTk(tuple):
 
 def updategraph():
     st.session_state['show'] = jobn
+    print(jobn)
     RightEye,LeftEye = downloadjobs(jobn)
     Rx = {}
     showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
