@@ -157,9 +157,13 @@ if 'show' in st.session_state:
 
 with col2:
     with tab1:
-        SliceTk(RightEye)
+        a,b,c = st.columns(3)
+        with b:
+            SliceTk(RightEye)
     with tab2:
-        SliceTk(LeftEye)
+        a,b,c = st.columns(3)
+        with b:
+            SliceTk(LeftEye)
     with tab3:
         st.write(Rx)
 
