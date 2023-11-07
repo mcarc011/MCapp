@@ -125,8 +125,7 @@ def SliceTk(tuple):
 
 def updategraph():
     st.session_state['show'] = jobn
-    jobv = st.session_state['show']
-    RightEye,LeftEye = downloadjobs(jobv)
+    RightEye,LeftEye = downloadjobs(jobn)
     Rx = {}
     showdat = ['IPD','PRVM','PRVA','BUPC','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
     for key in RightEye[1]:
