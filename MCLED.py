@@ -142,6 +142,7 @@ Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58
 ZT = 90 - np.sqrt(90**2 - R**2)
 RightEye = 'R',Rx,ZT,ZT,ZT,2.5
 LeftEye = 'L',Rx,ZT,ZT,ZT,2.5
+showdat = ['IPD','PRVM','PRVA','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
 
 if 'show' in st.session_state:
     jobv = st.session_state['show']
@@ -151,7 +152,6 @@ if 'show' in st.session_state:
         if key in showdat:
             Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
 
-showdat = ['IPD','PRVM','PRVA','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
 with col2:
     with tab1:
         SliceTk(RightEye)
