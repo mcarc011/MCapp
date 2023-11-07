@@ -123,54 +123,36 @@ def SliceTk(tuple):
     return
 
 
-
-#i figured out how to graph and keep the program running
-#all you literally need to do is put so it keeps going...
-#before it wouldnt show unless the program finished
-#but now i can keep my plugin running and itll keep graphing
-#ill make it show every graph the first time we try to implement it
-#to better monitor the jobs and be able to fix my plug in easier
-#eventually we can just turn them off
-
+def updategraph():
+    st.session_state['show'] = jobn
+    jobv = st.session_state['show']
+    RightEye,LeftEye = downloadjobs(jobv)
+    Rx = {}
+    showdat = ['IPD','PRVM','PRVA','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
+    for key in RightEye[1]:
+        if key in showdat:
+            Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
 
 st.write('# VU Graph #')  
 col1,col2 = st.columns(2)
 tab1,tab2,tab3 = st.tabs(['RIGHT','LEFT','PRSC'])
 
-Rx = {}
-Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
-ZT = 90 - np.sqrt(90**2 - R**2)
-BrEye = 'R',Rx,ZT,ZT,ZT,2.5
-BlEye = 'L',Rx,ZT,ZT,ZT,2.5
+if 'show' not in st.session_state:
+    Rx = {}
+    Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58,8
+    ZT = 90 - np.sqrt(90**2 - R**2)
+    RightEye = 'R',Rx,ZT,ZT,ZT,2.5
+    LeftEye = 'L',Rx,ZT,ZT,ZT,2.5
 
-showdat = ['IPD','PRVM','PRVA','PRSC','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT','LENT','OZONE','CRIB']
 with col2:
-    if 'show' not in st.session_state:
-        with tab1:
-            SliceTk(BrEye)
-        with tab2:
-            SliceTk(BlEye)
-        with tab3:
-            st.write(Rx)
-
-
-    if 'show' in st.session_state:
-        jobv = st.session_state['show']
-        RightEye,LeftEye = downloadjobs(jobv)
-        Rx = {}
-        for key in RightEye[1]:
-            if key in showdat:
-                Rx[key] = str(RightEye[1][key])+', '+str(LeftEye[1][key])
-        with tab1:
-            SliceTk(RightEye)
-        with tab2:
-            SliceTk(LeftEye)
-        with tab3:
-            st.write(Rx)
+    with tab1:
+        SliceTk(RightEye)
+    with tab2:
+        SliceTk(LeftEye)
+    with tab3:
+        st.write(Rx)
 
 with col2:
     jobn = st.text_input('Job Number')
-    plot = st.button('Plot')
+    plot = st.button('Plot',on_click=updategraph)
 
-if plot:
-    st.session_state['show'] = jobn
