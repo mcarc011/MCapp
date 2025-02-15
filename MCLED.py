@@ -117,7 +117,7 @@ def SliceTk(tuple):
     plt.plot( B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     plt.plot(-B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     #st.set_option('deprecation.showPyplotGlobalUse', False)
-    st.pyplot(plt.subplots())
+    st.pyplot()
 
     
     return
