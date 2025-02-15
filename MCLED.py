@@ -69,6 +69,7 @@ def SliceTk(tuple):
     ED = Rx['FED']
     dED = np.sqrt(Rx['XDEC']**2 + Rx['YDEC']**2)
     plt.figure(figsize=(10,10))
+    fig, ax = plt.subplots()
     if Eye=='L':
         Eye='R'
     else:
@@ -117,7 +118,7 @@ def SliceTk(tuple):
     plt.plot( B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     plt.plot(-B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     #st.set_option('deprecation.showPyplotGlobalUse', False)
-    st.pyplot()
+    st.pyplot(fig)
 
     
     return
