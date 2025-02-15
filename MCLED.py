@@ -116,7 +116,7 @@ def SliceTk(tuple):
     plt.plot(-x,ZF[85] - nCT -42.5, color='royalblue')
     plt.plot( B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
     plt.plot(-B/2.0 + Rx['YDEC'] + x-x,XP+42.5, color='BLACK')
-    st.set_option('deprecation.showPyplotGlobalUse', False)
+    #st.set_option('deprecation.showPyplotGlobalUse', False)
     st.pyplot()
 
     
