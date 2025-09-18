@@ -143,7 +143,7 @@ Rx['HBOX'],Rx['VBOX'],Rx['XDEC'],Rx['YDEC'],Rx['FED'],Rx['BCTHK'] = 50,40,0,0,58
 ZT = 90 - np.sqrt(90**2 - R**2)
 RightEye = 'R',Rx,ZT,ZT,ZT,2.5
 LeftEye = 'L',Rx,ZT,ZT,ZT,2.5
-showdat = ['IPD','SPH','CYL','AX','PRVM','BUPC','PRVA','PRSC','LNAMEN','LNSEN','LNAM','LENT','OZONE','CRIB','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT']
+showdat = ['IPD','SPH','CYL','AX','ADD','PRVM','BUPC','PRVA','PRSC','LNAMEN','LNSEN','LNAM','LENT','OZONE','CRIB','SEGHT','HBOX','VBOX','DBL','FED','FEDAX','LIND','FRNT']
 
 if 'show' in st.session_state:
     jobv = st.session_state['show']
