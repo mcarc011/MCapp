@@ -9,6 +9,16 @@ from numpy import array
 
 
 # ============================================================
+# PAGE CONFIG
+# ============================================================
+
+st.set_page_config(
+    page_title="VU Lens Graph",
+    layout="wide"
+)
+
+
+# ============================================================
 # GLOBAL GRID
 # ============================================================
 
@@ -175,10 +185,7 @@ def downloadjobs(jobname):
             ]
         )
 
-        # ----------------------------------------------------
-        # Keep compatibility with your original server format.
-        # ----------------------------------------------------
-
+        # Keep compatibility with your existing server format
         SliceTkR = eval(
             SliceTkR
         )
@@ -216,17 +223,8 @@ def sample_surface(
 ):
 
     """
-    Sample the 171x171 3D surface at arbitrary x/y points.
-
-    Bilinear interpolation lets the slice rotate smoothly
-    instead of jumping from one grid point to another.
+    Bilinear interpolation of the 171x171 surface.
     """
-
-    # Convert millimeters to array indices.
-    #
-    # -42.5 mm -> index 0
-    #   0.0 mm -> index 85
-    # +42.5 mm -> index 170
 
     fx = (
         xs + 42.5
@@ -244,13 +242,8 @@ def sample_surface(
         fy
     ).astype(int)
 
-    x1 = (
-        x0 + 1
-    )
-
-    y1 = (
-        y0 + 1
-    )
+    x1 = x0 + 1
+    y1 = y0 + 1
 
     x0 = np.clip(
         x0,
@@ -276,13 +269,8 @@ def sample_surface(
         170
     )
 
-    dx = (
-        fx - x0
-    )
-
-    dy = (
-        fy - y0
-    )
+    dx = fx - x0
+    dy = fy - y0
 
     z00 = surface[
         y0,
@@ -340,19 +328,6 @@ def get_rotated_slice(
     angle_deg
 ):
 
-    """
-    Return one diameter through the 3D lens surface.
-
-    0 degrees:
-        horizontal
-
-    90 degrees:
-        vertical
-
-    Other angles:
-        arbitrary meridian through the 3D surface.
-    """
-
     theta = np.deg2rad(
         angle_deg
     )
@@ -397,16 +372,12 @@ def frame_half_length(
 ):
 
     """
-    Determine how far the current ray can travel before
-    leaving the frame boxing rectangle.
+    Determine where the rotating slice intersects
+    the frame boxing rectangle.
 
     A   = HBOX
     B   = VBOX
-    FED = maximum effective diameter bound
-
-    This DOES NOT use the edge of the blank.
-
-    It limits the slice to the region relevant to the frame.
+    FED = additional maximum radial bound
     """
 
     A = float(
@@ -444,10 +415,6 @@ def frame_half_length(
         np.sin(theta)
     )
 
-    # --------------------------------------------------------
-    # Where does the ray hit the vertical sides of the box?
-    # --------------------------------------------------------
-
     if cos_t > 1e-10:
 
         limit_x = (
@@ -457,10 +424,6 @@ def frame_half_length(
     else:
 
         limit_x = np.inf
-
-    # --------------------------------------------------------
-    # Where does the ray hit the horizontal sides?
-    # --------------------------------------------------------
 
     if sin_t > 1e-10:
 
@@ -472,25 +435,19 @@ def frame_half_length(
 
         limit_y = np.inf
 
-    # --------------------------------------------------------
-    # FED is an additional bound.
-    # --------------------------------------------------------
-
     limit_fed = (
         FED / 2.0
     )
 
-    half_length = min(
+    return min(
         limit_x,
         limit_y,
         limit_fed
     )
 
-    return half_length
-
 
 # ============================================================
-# DRAW FRAME BOX + CURRENT SLICE
+# SMALL FRAME ORIENTATION DIAGRAM
 # ============================================================
 
 def plot_frame_diagram(
@@ -511,15 +468,6 @@ def plot_frame_diagram(
         Rx.get(
             "VBOX",
             40
-        )
-    )
-
-    FED = float(
-        Rx.get(
-            "FED",
-            np.sqrt(
-                A**2 + B**2
-            )
         )
     )
 
@@ -555,10 +503,9 @@ def plot_frame_diagram(
     )
 
     fig, ax = plt.subplots(
-        figsize=(5, 5)
+        figsize=(4, 3)
     )
 
-    # Frame box
     rectangle_x = [
         -A / 2,
         A / 2,
@@ -581,7 +528,6 @@ def plot_frame_diagram(
         linewidth=2
     )
 
-    # Current rotating slice
     ax.plot(
         [
             x1,
@@ -594,13 +540,13 @@ def plot_frame_diagram(
         linewidth=3
     )
 
-    # Optical/frame center
     ax.scatter(
         [0],
-        [0]
+        [0],
+        s=25
     )
 
-    margin = 5
+    margin = 4
 
     ax.set_xlim(
         -A / 2 - margin,
@@ -616,14 +562,6 @@ def plot_frame_diagram(
         "equal"
     )
 
-    ax.set_xlabel(
-        "X (mm)"
-    )
-
-    ax.set_ylabel(
-        "Y (mm)"
-    )
-
     eye_name = (
         "Right"
         if Eye == "R"
@@ -631,8 +569,13 @@ def plot_frame_diagram(
     )
 
     ax.set_title(
-        f"{eye_name} Frame Box\n"
-        f"{angle_deg:.1f}° slice"
+        f"{eye_name} frame — "
+        f"{angle_deg:.0f}°",
+        fontsize=11
+    )
+
+    ax.tick_params(
+        labelsize=8
     )
 
     ax.grid(
@@ -645,7 +588,7 @@ def plot_frame_diagram(
 
 
 # ============================================================
-# MAIN SLICE PLOT
+# MAIN LENS CROSS SECTION
 # ============================================================
 
 def SliceTk(
@@ -687,7 +630,7 @@ def SliceTk(
     )
 
     # ========================================================
-    # GET ROTATED 3D SURFACE CUTS
+    # ROTATED SURFACE CUTS
     # ========================================================
 
     (
@@ -736,7 +679,7 @@ def SliceTk(
     )
 
     # ========================================================
-    # LIMIT TO FRAME BOX
+    # LIMIT TO FRAME BOX / FED
     # ========================================================
 
     frame_limit = (
@@ -751,25 +694,25 @@ def SliceTk(
         <= frame_limit
     )
 
-    frame_d = (
-        d[valid]
-    )
+    frame_d = d[
+        valid
+    ]
 
-    frame_Z = (
-        Z_slice[valid]
-    )
+    frame_Z = Z_slice[
+        valid
+    ]
 
-    frame_ZF = (
-        ZF_slice[valid]
-    )
+    frame_ZF = ZF_slice[
+        valid
+    ]
 
-    frame_ZBb = (
-        ZBb_slice[valid]
-    )
+    frame_ZBb = ZBb_slice[
+        valid
+    ]
 
-    frame_thickness = (
-        thickness[valid]
-    )
+    frame_thickness = thickness[
+        valid
+    ]
 
     # ========================================================
     # STATISTICS
@@ -781,7 +724,7 @@ def SliceTk(
         )
     )
 
-    center_thickness = (
+    center_thickness = float(
         frame_thickness[
             center_index
         ]
@@ -795,24 +738,28 @@ def SliceTk(
         frame_thickness
     )
 
-    minimum_thickness = (
+    minimum_thickness = float(
         frame_thickness[
             min_index
         ]
     )
 
-    maximum_thickness = (
+    maximum_thickness = float(
         frame_thickness[
             max_index
         ]
     )
 
-    left_edge_thickness = (
-        frame_thickness[0]
+    negative_edge_thickness = float(
+        frame_thickness[
+            0
+        ]
     )
 
-    right_edge_thickness = (
-        frame_thickness[-1]
+    positive_edge_thickness = float(
+        frame_thickness[
+            -1
+        ]
     )
 
     eye_name = (
@@ -822,11 +769,48 @@ def SliceTk(
     )
 
     # ========================================================
-    # CROSS SECTION
+    # LARGE THICKNESS METRICS
+    # ========================================================
+
+    st.markdown(
+        "### Thickness"
+    )
+
+    c1, c2, c3, c4, c5 = st.columns(
+        5
+    )
+
+    c1.metric(
+        "Center",
+        f"{center_thickness:.3f} mm"
+    )
+
+    c2.metric(
+        "Negative Edge",
+        f"{negative_edge_thickness:.3f} mm"
+    )
+
+    c3.metric(
+        "Positive Edge",
+        f"{positive_edge_thickness:.3f} mm"
+    )
+
+    c4.metric(
+        "Minimum",
+        f"{minimum_thickness:.3f} mm"
+    )
+
+    c5.metric(
+        "Maximum",
+        f"{maximum_thickness:.3f} mm"
+    )
+
+    # ========================================================
+    # LARGE CROSS-SECTION GRAPH
     # ========================================================
 
     fig, ax = plt.subplots(
-        figsize=(10, 5.5)
+        figsize=(15, 7)
     )
 
     front_surface = (
@@ -841,21 +825,26 @@ def SliceTk(
     base_surface = (
         frame_ZBb
         + (
-            CT - nCT
+            CT
+            - nCT
         )
     )
+
+    # --------------------------------------------------------
+    # SURFACES
+    # --------------------------------------------------------
 
     ax.plot(
         frame_d,
         front_surface,
-        linewidth=2,
+        linewidth=3,
         label="Front Surface"
     )
 
     ax.plot(
         frame_d,
         designed_surface,
-        linewidth=2,
+        linewidth=3,
         label="Designed Surface"
     )
 
@@ -863,11 +852,11 @@ def SliceTk(
         frame_d,
         base_surface,
         linestyle="--",
-        linewidth=1.5,
+        linewidth=2,
         label="Base Surface"
     )
 
-    # Fill actual lens thickness
+    # Lens body
     ax.fill_between(
         frame_d,
         front_surface,
@@ -875,9 +864,9 @@ def SliceTk(
         alpha=0.15
     )
 
-    # --------------------------------------------------------
-    # Center thickness marker
-    # --------------------------------------------------------
+    # ========================================================
+    # CENTER THICKNESS
+    # ========================================================
 
     center_x = (
         frame_d[
@@ -906,7 +895,7 @@ def SliceTk(
             center_front,
             center_back
         ],
-        linewidth=2
+        linewidth=3
     )
 
     ax.text(
@@ -916,64 +905,84 @@ def SliceTk(
             + center_back
         ) / 2,
         f"  {center_thickness:.3f} mm",
-        fontsize=11
+        fontsize=17,
+        fontweight="bold",
+        verticalalignment="center"
     )
 
-    # --------------------------------------------------------
-    # Negative side of frame
-    # --------------------------------------------------------
+    # ========================================================
+    # NEGATIVE FRAME EDGE
+    # ========================================================
+
+    negative_x = (
+        frame_d[
+            0
+        ]
+    )
 
     ax.plot(
         [
-            frame_d[0],
-            frame_d[0]
+            negative_x,
+            negative_x
         ],
         [
             front_surface[0],
             designed_surface[0]
         ],
-        linewidth=2
+        linewidth=3
     )
 
     ax.text(
-        frame_d[0],
+        negative_x,
         (
             front_surface[0]
             + designed_surface[0]
         ) / 2,
-        f"  {left_edge_thickness:.3f}",
-        fontsize=10
+        f"{negative_edge_thickness:.3f} mm  ",
+        fontsize=17,
+        fontweight="bold",
+        horizontalalignment="right",
+        verticalalignment="center"
     )
 
-    # --------------------------------------------------------
-    # Positive side of frame
-    # --------------------------------------------------------
+    # ========================================================
+    # POSITIVE FRAME EDGE
+    # ========================================================
+
+    positive_x = (
+        frame_d[
+            -1
+        ]
+    )
 
     ax.plot(
         [
-            frame_d[-1],
-            frame_d[-1]
+            positive_x,
+            positive_x
         ],
         [
             front_surface[-1],
             designed_surface[-1]
         ],
-        linewidth=2
+        linewidth=3
     )
 
     ax.text(
-        frame_d[-1],
+        positive_x,
         (
             front_surface[-1]
             + designed_surface[-1]
         ) / 2,
-        f"  {right_edge_thickness:.3f}",
-        fontsize=10
+        f"  {positive_edge_thickness:.3f} mm",
+        fontsize=17,
+        fontweight="bold",
+        horizontalalignment="left",
+        verticalalignment="center"
     )
 
-    # --------------------------------------------------------
-    # Mark minimum thickness
-    # --------------------------------------------------------
+    # ========================================================
+    # MINIMUM THICKNESS MARKER
+    # ========================================================
 
     min_x = (
         frame_d[
@@ -981,38 +990,69 @@ def SliceTk(
         ]
     )
 
+    min_front = (
+        front_surface[
+            min_index
+        ]
+    )
+
+    min_back = (
+        designed_surface[
+            min_index
+        ]
+    )
+
+    ax.plot(
+        [
+            min_x,
+            min_x
+        ],
+        [
+            min_front,
+            min_back
+        ],
+        linewidth=2
+    )
+
     ax.scatter(
         [
             min_x
         ],
         [
-            designed_surface[
-                min_index
-            ]
+            min_back
         ],
-        s=50
+        s=70
     )
 
-    # --------------------------------------------------------
-    # Formatting
-    # --------------------------------------------------------
+    # ========================================================
+    # FORMATTING
+    # ========================================================
 
     ax.set_title(
         f"{eye_name} Eye — "
-        f"{angle_deg:.1f}° Frame Slice"
+        f"{angle_deg:.1f}° Slice",
+        fontsize=20,
+        fontweight="bold"
     )
 
     ax.set_xlabel(
-        "Position Through Frame (mm)"
+        "Position Through Frame (mm)",
+        fontsize=15
     )
 
     ax.set_ylabel(
-        "Sag / Surface Position (mm)"
+        "Surface Position / Sag (mm)",
+        fontsize=15
+    )
+
+    ax.tick_params(
+        axis="both",
+        labelsize=13
     )
 
     ax.axvline(
         0,
-        linewidth=0.8,
+        linewidth=1,
         alpha=0.4
     )
 
@@ -1020,73 +1060,43 @@ def SliceTk(
         alpha=0.2
     )
 
-    ax.legend()
+    ax.legend(
+        fontsize=13,
+        loc="best"
+    )
+
+    # Add margin so edge thickness labels don't get clipped
+    x_margin = max(
+        3,
+        (
+            frame_d[-1]
+            - frame_d[0]
+        ) * 0.08
+    )
+
+    ax.set_xlim(
+        frame_d[0]
+        - x_margin,
+        frame_d[-1]
+        + x_margin
+    )
 
     fig.tight_layout()
 
     st.pyplot(
-        fig
+        fig,
+        use_container_width=True
     )
 
     plt.close(
         fig
     )
 
-    
-
-    # ========================================================
-    # NUMERICAL RESULTS
-    # ========================================================
-
-    c1, c2, c3 = st.columns(
-        3
-    )
-
-    with c1:
-
-        st.metric(
-            "Center Thickness",
-            f"{center_thickness:.3f} mm"
-        )
-
-    with c2:
-
-        st.metric(
-            "Minimum on Slice",
-            f"{minimum_thickness:.3f} mm"
-        )
-
-    with c3:
-
-        st.metric(
-            "Maximum on Slice",
-            f"{maximum_thickness:.3f} mm"
-        )
-
-    c4, c5 = st.columns(
-        2
-    )
-
-    with c4:
-
-        st.metric(
-            "Negative Frame Edge",
-            f"{left_edge_thickness:.3f} mm"
-        )
-
-    with c5:
-
-        st.metric(
-            "Positive Frame Edge",
-            f"{right_edge_thickness:.3f} mm"
-        )
-
     st.caption(
-        f"Frame dimensions: "
-        f"A={A:.2f} mm, "
-        f"B={B:.2f} mm, "
-        f"FED={FED:.2f} mm | "
-        f"Current half-slice={frame_limit:.2f} mm"
+        f"A = {A:.2f} mm   |   "
+        f"B = {B:.2f} mm   |   "
+        f"FED = {FED:.2f} mm   |   "
+        f"slice half-length = {frame_limit:.2f} mm"
     )
 
 
@@ -1094,8 +1104,8 @@ def SliceTk(
 # STREAMLIT UI
 # ============================================================
 
-st.write(
-    "# VU Lens Graph"
+st.title(
+    "VU Lens Graph"
 )
 
 
@@ -1103,13 +1113,29 @@ st.write(
 # JOB NUMBER
 # ============================================================
 
-jobn = st.text_input(
-    "Job Number"
+top1, top2 = st.columns(
+    [
+        4,
+        1
+    ]
 )
 
-plot = st.button(
-    "Plot"
-)
+with top1:
+
+    jobn = st.text_input(
+        "Job Number"
+    )
+
+with top2:
+
+    st.write("")
+    st.write("")
+
+    plot = st.button(
+        "Plot",
+        use_container_width=True
+    )
+
 
 if plot:
 
@@ -1125,7 +1151,7 @@ if plot:
 
 
 # ============================================================
-# ANGLE SLIDER
+# ANGLE
 # ============================================================
 
 angle = st.slider(
@@ -1148,29 +1174,12 @@ st.caption(
 
 Rx = {}
 
-Rx[
-    "HBOX"
-] = 50
-
-Rx[
-    "VBOX"
-] = 40
-
-Rx[
-    "XDEC"
-] = 0
-
-Rx[
-    "YDEC"
-] = 0
-
-Rx[
-    "FED"
-] = 58
-
-Rx[
-    "BCTHK"
-] = 8
+Rx["HBOX"] = 50
+Rx["VBOX"] = 40
+Rx["XDEC"] = 0
+Rx["YDEC"] = 0
+Rx["FED"] = 58
+Rx["BCTHK"] = 8
 
 
 ZT = (
@@ -1201,7 +1210,7 @@ LeftEye = (
 
 
 # ============================================================
-# PARAMETERS TO SHOW
+# PARAMETERS TO DISPLAY
 # ============================================================
 
 showdat = [
@@ -1231,7 +1240,7 @@ showdat = [
 
 
 # ============================================================
-# LOAD JOB FROM SESSION
+# LOAD CURRENT JOB
 # ============================================================
 
 if (
@@ -1336,16 +1345,19 @@ tab1, tab2, tab3 = st.tabs(
 
 with tab1:
 
-    diagram_col, info_col = (
-        st.columns(
-            [
-                1,
-                2
-            ]
-        )
+    st.subheader(
+        "Right Eye"
     )
 
-    with diagram_col:
+    # Small orientation diagram only
+    frame_col, blank_col = st.columns(
+        [
+            1,
+            3
+        ]
+    )
+
+    with frame_col:
 
         frame_fig = (
             plot_frame_diagram(
@@ -1355,23 +1367,19 @@ with tab1:
         )
 
         st.pyplot(
-            frame_fig
+            frame_fig,
+            use_container_width=True
         )
 
         plt.close(
             frame_fig
         )
 
-    with info_col:
-
-        st.write(
-            "### Right Eye"
-        )
-
-        SliceTk(
-            RightEye,
-            angle
-        )
+    # Full-width important graph
+    SliceTk(
+        RightEye,
+        angle
+    )
 
 
 # ============================================================
@@ -1380,16 +1388,18 @@ with tab1:
 
 with tab2:
 
-    diagram_col, info_col = (
-        st.columns(
-            [
-                1,
-                2
-            ]
-        )
+    st.subheader(
+        "Left Eye"
     )
 
-    with diagram_col:
+    frame_col, blank_col = st.columns(
+        [
+            1,
+            3
+        ]
+    )
+
+    with frame_col:
 
         frame_fig = (
             plot_frame_diagram(
@@ -1399,45 +1409,70 @@ with tab2:
         )
 
         st.pyplot(
-            frame_fig
+            frame_fig,
+            use_container_width=True
         )
 
         plt.close(
             frame_fig
         )
 
-    with info_col:
-
-        st.write(
-            "### Left Eye"
-        )
-
-        SliceTk(
-            LeftEye,
-            angle
-        )
+    # Full-width important graph
+    SliceTk(
+        LeftEye,
+        angle
+    )
 
 
 # ============================================================
-# PRESCRIPTION / PARAMETERS
+# PRESCRIPTION
 # ============================================================
 
 with tab3:
 
-    st.write(
-        "### Job Parameters"
+    st.subheader(
+        "Job Parameters"
     )
 
     if RxDisplay:
 
-        for key, value in (
-            RxDisplay.items()
-        ):
+        pcol1, pcol2 = st.columns(
+            2
+        )
 
-            st.write(
-                f"**{key}:** "
-                f"{value}"
-            )
+        items = list(
+            RxDisplay.items()
+        )
+
+        midpoint = (
+            len(items) + 1
+        ) // 2
+
+        with pcol1:
+
+            for key, value in (
+                items[
+                    :midpoint
+                ]
+            ):
+
+                st.write(
+                    f"**{key}:** "
+                    f"{value}"
+                )
+
+        with pcol2:
+
+            for key, value in (
+                items[
+                    midpoint:
+                ]
+            ):
+
+                st.write(
+                    f"**{key}:** "
+                    f"{value}"
+                )
 
     else:
 
