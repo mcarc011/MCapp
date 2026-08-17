@@ -1,4 +1,3 @@
-import ast
 import base64
 import json
 from pathlib import Path
@@ -161,12 +160,28 @@ def download_jobs(jobname):
         # ----------------------------------------------------
 
         try:
-            right_lens = ast.literal_eval(temp_received["rslice"])
-            left_lens = ast.literal_eval(temp_received["lslice"])
-
+            # Existing VU lens format contains NumPy array(...) expressions.
+            # Restrict eval so it only has access to NumPy's array constructor.
+            safe_globals = {
+                "__builtins__": {},
+                "array": np.array,
+            }
+        
+            right_lens = eval(
+                temp_received["rslice"],
+                safe_globals,
+                {}
+            )
+        
+            left_lens = eval(
+                temp_received["lslice"],
+                safe_globals,
+                {}
+            )
+        
         except Exception as exc:
             raise RuntimeError(
-                "Could not parse right/left lens metadata."
+                f"Could not parse right/left lens metadata: {exc}"
             ) from exc
 
         right_lens = list(right_lens)
