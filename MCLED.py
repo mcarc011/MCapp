@@ -1041,7 +1041,7 @@ def SliceTk(
     )
 
     ax.set_ylabel(
-        "Surface Position / Sag (mm)",
+        "",
         fontsize=15
     )
 
