@@ -1,56 +1,35 @@
-import base64
-import json
-from pathlib import Path
-from datetime import datetime
-
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import requests
 import streamlit as st
+import json
+import requests
 from Crypto.Cipher import AES
+import base64
+from numpy import array
 
 
 # ============================================================
-# PAGE CONFIG
+# GLOBAL GRID
 # ============================================================
 
-st.set_page_config(
-    page_title="VU Lens Viewer",
-    page_icon="👓",
-    layout="wide"
-)
-
-st.title("VU Lens Design Viewer")
-
-
-# ============================================================
-# GLOBAL GEOMETRY GRID
-# ============================================================
-
-GRID_SIZE = 171
-HALF_SIZE = 42.5
-STEP = 0.5
-CENTER = GRID_SIZE // 2
-
-x = np.arange(-HALF_SIZE, HALF_SIZE + STEP, STEP)
+x = np.arange(-42.5, 43.0, 0.5)
 
 Y, X = np.meshgrid(x, x)
 
 R = np.sqrt(X**2 + Y**2)
 
-# Default surface used before a real job is loaded
-ZT_DEFAULT = 90 - np.sqrt(np.maximum(90**2 - R**2, 0))
+Theta = np.arctan2(Y, -X + 0.00000001)
+
+ZT = R - R
 
 
 # ============================================================
-# SERVER / DOWNLOAD
+# DOWNLOAD JOB
 # ============================================================
 
-def download_jobs(jobname):
-    """
-    Download and decrypt right/left lens data from the VU server.
-    """
+def downloadjobs(jobname):
+
+    global ZT
 
     start = str(int(jobname) - 1)
     final = str(int(jobname) + 1)
@@ -60,542 +39,740 @@ def download_jobs(jobname):
     url = st.secrets["mainurl"]
     key = st.secrets["mckey"]
 
-    aes_key = bytes.fromhex(key)
+    aeskey = bytes.fromhex(key)
+
+    auth = (username, password)
 
     data = {
         "jobsrequest": [start, final]
     }
 
-    try:
-        response = requests.post(
-            url,
-            json=data,
-            auth=(username, password),
-            timeout=30
-        )
+    response = requests.post(
+        url,
+        json=data,
+        auth=auth
+    )
 
-        response.raise_for_status()
+    received = json.loads(
+        response.content.decode("utf-8")
+    )
 
-    except requests.RequestException as exc:
-        raise RuntimeError(
-            f"Could not connect to lens server: {exc}"
-        ) from exc
+    for fname in received:
 
-    try:
-        received = response.json()
+        tempreceived = {}
 
-    except Exception as exc:
-        raise RuntimeError(
-            "Server response was not valid JSON."
-        ) from exc
+        for i, k in enumerate(
+            [
+                "data",
+                "tag",
+                "nonce",
+                "rslice",
+                "lslice"
+            ]
+        ):
 
-    if not received:
-        raise RuntimeError(
-            f"No job data returned for job {jobname}."
-        )
-
-    # The old code returns the first matching file/job.
-    for fname, encrypted_string in received.items():
-
-        pieces = encrypted_string.split("&")
-
-        if len(pieces) < 5:
-            raise RuntimeError(
-                f"Invalid encrypted job format for {fname}."
+            tempreceived[k] = (
+                received[fname]
+                .split("&")[i]
             )
 
-        temp_received = {
-            "data": pieces[0],
-            "tag": pieces[1],
-            "nonce": pieces[2],
-            "rslice": pieces[3],
-            "lslice": pieces[4],
-        }
-
-        # ----------------------------------------------------
-        # DECRYPT SURFACE DATA
-        # ----------------------------------------------------
+        # --------------------------------------------
+        # DECRYPT JOB
+        # --------------------------------------------
 
         cipher = AES.new(
-            aes_key,
+            aeskey,
             AES.MODE_EAX,
-            nonce=bytes.fromhex(temp_received["nonce"])
+            bytes.fromhex(
+                tempreceived["nonce"]
+            )
         )
 
-        try:
-            jobdata = cipher.decrypt_and_verify(
-                bytes.fromhex(temp_received["data"]),
-                bytes.fromhex(temp_received["tag"])
+        jobdata = cipher.decrypt_and_verify(
+            bytes.fromhex(
+                tempreceived["data"]
+            ),
+            bytes.fromhex(
+                tempreceived["tag"]
             )
-
-        except Exception as exc:
-            raise RuntimeError(
-                "Lens data could not be decrypted or authenticated."
-            ) from exc
+        )
 
         jobdata = jobdata.decode("utf-8")
 
-        try:
-            zr_text, zl_text = jobdata.split("@", 1)
+        Zr = jobdata.split("@")[0]
+        Zl = jobdata.split("@")[1]
 
-        except ValueError as exc:
-            raise RuntimeError(
-                "Decrypted job data did not contain both lens surfaces."
-            ) from exc
+        Zr = Zr.split("\n")
+        Zl = Zl.split("\n")
 
-        zr_lines = zr_text.splitlines()
-        zl_lines = zl_text.splitlines()
+        ZTr = ZT - ZT
+        ZTl = ZT - ZT
 
-        # ----------------------------------------------------
-        # REBUILD 171x171 ARRAYS
-        # ----------------------------------------------------
+        # --------------------------------------------
+        # RECONSTRUCT 3D SURFACES
+        # --------------------------------------------
 
-        ZTr = parse_surface_lines(zr_lines)
-        ZTl = parse_surface_lines(zl_lines)
+        for i in range(len(ZTr)):
 
-        # ----------------------------------------------------
-        # PARSE THE EXISTING LENS TUPLES
-        #
-        # literal_eval is much safer than eval().
-        # ----------------------------------------------------
+            for j in range(len(ZTl)):
 
-        try:
-            # Existing VU lens format contains NumPy array(...) expressions.
-            # Restrict eval so it only has access to NumPy's array constructor.
-            safe_globals = {
-                "__builtins__": {},
-                "array": np.array,
-            }
-        
-            right_lens = eval(
-                temp_received["rslice"],
-                safe_globals,
-                {}
-            )
-        
-            left_lens = eval(
-                temp_received["lslice"],
-                safe_globals,
-                {}
-            )
-        
-        except Exception as exc:
-            raise RuntimeError(
-                f"Could not parse right/left lens metadata: {exc}"
-            ) from exc
+                ZTr[i, j] = float(
+                    Zr[
+                        i * 171 + j
+                    ].split(",")[-1]
+                )
 
-        right_lens = list(right_lens)
-        left_lens = list(left_lens)
+                ZTl[i, j] = float(
+                    Zl[
+                        i * 171 + j
+                    ].split(",")[-1]
+                )
 
-        # Surface Z is tuple position 2 in your existing format.
-        right_lens[2] = ZTr
-        left_lens[2] = ZTl
+        SliceTkR = tempreceived["rslice"]
+        SliceTkL = tempreceived["lslice"]
 
-        return tuple(right_lens), tuple(left_lens)
+        # Keep your original serialization format
+        SliceTkR = eval(SliceTkR)
+        SliceTkL = eval(SliceTkL)
 
-    raise RuntimeError(
-        f"Could not find usable data for job {jobname}."
-    )
-
-
-def parse_surface_lines(lines):
-    """
-    Convert the server's flattened 171x171 surface into a NumPy array.
-    """
-
-    expected_points = GRID_SIZE * GRID_SIZE
-
-    if len(lines) < expected_points:
-        raise RuntimeError(
-            f"Surface contained {len(lines)} points; "
-            f"expected {expected_points}."
+        SliceTkR = (
+            SliceTkR[:2]
+            + (ZTr,)
+            + SliceTkR[3:]
         )
 
-    values = []
+        SliceTkL = (
+            SliceTkL[:2]
+            + (ZTl,)
+            + SliceTkL[3:]
+        )
 
-    for line in lines[:expected_points]:
-
-        try:
-            values.append(
-                float(line.split(",")[-1])
-            )
-
-        except Exception as exc:
-            raise RuntimeError(
-                f"Could not parse surface point: {line}"
-            ) from exc
-
-    return np.array(
-        values,
-        dtype=float
-    ).reshape(GRID_SIZE, GRID_SIZE)
+        return SliceTkR, SliceTkL
 
 
 # ============================================================
-# LENS HELPERS
+# BILINEAR INTERPOLATION
 # ============================================================
 
-def unpack_lens(lens):
+def sample_surface(surface, xs, ys):
     """
-    Existing tuple structure:
+    Sample a 171x171 surface at arbitrary X,Y positions.
 
-    Eye, Rx, Z, ZBb, ZF, nCT
-    """
-
-    eye, rx, z, z_back_base, z_front, nct = lens
-
-    return {
-        "eye": eye,
-        "rx": rx,
-        "Z": np.array(z, dtype=float),
-        "ZBb": np.array(z_back_base, dtype=float),
-        "ZF": np.array(z_front, dtype=float),
-        "nCT": float(nct),
-    }
-
-
-def calculate_thickness(lens):
-    """
-    Thickness calculation from the original code.
+    Uses bilinear interpolation so the rotating slice
+    moves smoothly instead of jumping between pixels.
     """
 
-    data = unpack_lens(lens)
+    # Grid:
+    # -42.5 -> index 0
+    # 0     -> index 85
+    # +42.5 -> index 170
 
-    thickness = (
-        data["nCT"]
-        - data["ZF"]
-        + data["Z"]
+    fx = (xs + 42.5) / 0.5
+    fy = (ys + 42.5) / 0.5
+
+    # Because of mesh/grid orientation:
+    # surface[row_y, column_x]
+
+    x0 = np.floor(fx).astype(int)
+    y0 = np.floor(fy).astype(int)
+
+    x1 = x0 + 1
+    y1 = y0 + 1
+
+    x0 = np.clip(x0, 0, 170)
+    x1 = np.clip(x1, 0, 170)
+
+    y0 = np.clip(y0, 0, 170)
+    y1 = np.clip(y1, 0, 170)
+
+    dx = fx - x0
+    dy = fy - y0
+
+    z00 = surface[y0, x0]
+    z10 = surface[y0, x1]
+    z01 = surface[y1, x0]
+    z11 = surface[y1, x1]
+
+    z0 = (
+        z00 * (1 - dx)
+        + z10 * dx
     )
 
-    return thickness
+    z1 = (
+        z01 * (1 - dx)
+        + z11 * dx
+    )
 
+    z = (
+        z0 * (1 - dy)
+        + z1 * dy
+    )
 
-def get_thickness_stats(lens):
-    thickness = calculate_thickness(lens)
-
-    finite = thickness[np.isfinite(thickness)]
-
-    return {
-        "center": float(thickness[CENTER, CENTER]),
-        "minimum": float(np.min(finite)),
-        "maximum": float(np.max(finite)),
-        "mean": float(np.mean(finite)),
-    }
+    return z
 
 
 # ============================================================
-# CROSS SECTION
+# ROTATING SLICE
 # ============================================================
 
-def plot_slice(lens):
+def get_rotated_slice(surface, angle_deg):
     """
-    Updated version of your original SliceTk function.
+    Extract a diameter through the 3D surface
+    at angle angle_deg.
     """
 
-    data = unpack_lens(lens)
+    theta = np.deg2rad(
+        angle_deg
+    )
 
-    eye = data["eye"]
-    rx = data["rx"]
-    Z = data["Z"]
-    ZBb = data["ZBb"]
-    ZF = data["ZF"]
-    nCT = data["nCT"]
+    distance = np.arange(
+        -42.5,
+        43.0,
+        0.5
+    )
 
-    A = float(rx.get("HBOX", 50))
-    B = float(rx.get("VBOX", 40))
-    XDEC = float(rx.get("XDEC", 0))
-    YDEC = float(rx.get("YDEC", 0))
+    xs = (
+        distance
+        * np.cos(theta)
+    )
 
-    CT = float(rx.get("BCTHK", nCT))
+    ys = (
+        distance
+        * np.sin(theta)
+    )
+
+    values = sample_surface(
+        surface,
+        xs,
+        ys
+    )
+
+    return (
+        distance,
+        xs,
+        ys,
+        values
+    )
+
+
+# ============================================================
+# FIND FRAME EDGE ALONG CURRENT ANGLE
+# ============================================================
+
+def frame_radius(rx, angle_deg):
+    """
+    Approximate frame shape as ellipse using
+    HBOX and VBOX.
+
+    Returns radius from center to frame edge
+    along the selected angle.
+    """
+
+    A = float(
+        rx.get("HBOX", 50)
+    )
+
+    B = float(
+        rx.get("VBOX", 40)
+    )
+
+    a = A / 2.0
+    b = B / 2.0
+
+    theta = np.deg2rad(
+        angle_deg
+    )
+
+    denominator = np.sqrt(
+        (
+            np.cos(theta) / a
+        )**2
+        +
+        (
+            np.sin(theta) / b
+        )**2
+    )
+
+    if denominator == 0:
+        return min(a, b)
+
+    return 1.0 / denominator
+
+
+# ============================================================
+# ROTATING LENS CROSS SECTION
+# ============================================================
+
+def SliceTk(lens, angle_deg):
+
+    Eye, Rx, Z, ZBb, ZF, nCT = lens
+
+    # --------------------------------------------
+    # PARAMETERS
+    # --------------------------------------------
+
+    CT = float(
+        Rx.get(
+            "BCTHK",
+            nCT
+        )
+    )
+
+    A = float(
+        Rx.get(
+            "HBOX",
+            50
+        )
+    )
+
+    B = float(
+        Rx.get(
+            "VBOX",
+            40
+        )
+    )
+
+    # --------------------------------------------
+    # ROTATED SURFACE SLICES
+    # --------------------------------------------
+
+    d, xs, ys, Z_slice = (
+        get_rotated_slice(
+            Z,
+            angle_deg
+        )
+    )
+
+    _, _, _, ZF_slice = (
+        get_rotated_slice(
+            ZF,
+            angle_deg
+        )
+    )
+
+    _, _, _, ZBb_slice = (
+        get_rotated_slice(
+            ZBb,
+            angle_deg
+        )
+    )
+
+    # --------------------------------------------
+    # THICKNESS ALONG THIS SLICE
+    # --------------------------------------------
+
+    thickness = (
+        nCT
+        - ZF_slice
+        + Z_slice
+    )
 
     thickness = np.round(
-        calculate_thickness(lens),
+        thickness,
         3
     )
 
-    fig, ax = plt.subplots(figsize=(9, 7))
+    # --------------------------------------------
+    # CALCULATE FRAME EDGE
+    # --------------------------------------------
 
-    # --------------------------------------------------------
-    # HORIZONTAL SECTION
-    # --------------------------------------------------------
-
-    ax.plot(
-        x,
-        ZBb[CENTER] + (CT - nCT) + HALF_SIZE,
-        label="Back Base"
+    edge_radius = frame_radius(
+        Rx,
+        angle_deg
     )
 
-    ax.plot(
-        x,
-        Z[CENTER] + HALF_SIZE,
-        label="Designed Surface"
+    valid = (
+        np.abs(d)
+        <= edge_radius
     )
 
+    lens_d = d[valid]
+
+    lens_thickness = (
+        thickness[valid]
+    )
+
+    Z_slice_valid = (
+        Z_slice[valid]
+    )
+
+    ZF_slice_valid = (
+        ZF_slice[valid]
+    )
+
+    ZBb_slice_valid = (
+        ZBb_slice[valid]
+    )
+
+    # --------------------------------------------
+    # STATISTICS
+    # --------------------------------------------
+
+    center_index = np.argmin(
+        np.abs(lens_d)
+    )
+
+    center_thickness = (
+        lens_thickness[
+            center_index
+        ]
+    )
+
+    minimum_thickness = (
+        np.min(
+            lens_thickness
+        )
+    )
+
+    maximum_thickness = (
+        np.max(
+            lens_thickness
+        )
+    )
+
+    left_edge_thickness = (
+        lens_thickness[0]
+    )
+
+    right_edge_thickness = (
+        lens_thickness[-1]
+    )
+
+    # ========================================================
+    # SURFACE CROSS SECTION
+    # ========================================================
+
+    fig, ax = plt.subplots(
+        figsize=(10, 6)
+    )
+
+    # Front surface
     ax.plot(
-        x,
-        ZF[CENTER] - nCT + HALF_SIZE,
+        lens_d,
+        ZF_slice_valid - nCT,
+        linewidth=2,
         label="Front Surface"
     )
 
-    # --------------------------------------------------------
-    # Lens dimensions
-    # --------------------------------------------------------
-
-    XP = x / 2.0
-
-    if eye == "R":
-
-        x1 = A / 2.0 - XDEC
-        x2 = -A / 2.0 - XDEC
-
-    else:
-
-        x1 = A / 2.0 + XDEC
-        x2 = -A / 2.0 + XDEC
-
+    # Designed/back surface
     ax.plot(
-        np.full_like(x, x1),
-        XP - HALF_SIZE
+        lens_d,
+        Z_slice_valid,
+        linewidth=2,
+        label="Designed Surface"
     )
 
+    # Original/base surface
     ax.plot(
-        np.full_like(x, x2),
-        XP - HALF_SIZE
+        lens_d,
+        ZBb_slice_valid
+        + (CT - nCT),
+        linestyle="--",
+        linewidth=1.5,
+        label="Base Surface"
     )
 
-    # --------------------------------------------------------
-    # Labels
-    # --------------------------------------------------------
+    # --------------------------------------------
+    # Shade physical thickness
+    # --------------------------------------------
 
-    text_locations = [
-        (
-            -B / 2.0 + YDEC,
-            60,
-            safe_thickness_value(
-                thickness,
-                CENTER,
-                int(CENTER - B + 2 * YDEC)
-            )
-        ),
-        (
-            B / 2.0 + YDEC,
-            60,
-            safe_thickness_value(
-                thickness,
-                CENTER,
-                int(CENTER + B + 2 * YDEC)
-            )
-        ),
-        (
-            0,
-            30,
-            thickness[CENTER, CENTER]
-        )
+    ax.fill_between(
+        lens_d,
+        ZF_slice_valid - nCT,
+        Z_slice_valid,
+        alpha=0.15
+    )
+
+    # --------------------------------------------
+    # CENTER THICKNESS
+    # --------------------------------------------
+
+    center_x = lens_d[
+        center_index
     ]
 
-    if eye == "R":
+    center_front = (
+        ZF_slice_valid[
+            center_index
+        ]
+        - nCT
+    )
 
-        text_locations.extend([
+    center_back = (
+        Z_slice_valid[
+            center_index
+        ]
+    )
+
+    ax.plot(
+        [center_x, center_x],
+        [
+            center_front,
+            center_back
+        ],
+        linewidth=2
+    )
+
+    ax.text(
+        center_x,
+        (
+            center_front
+            + center_back
+        ) / 2,
+        f"  {center_thickness:.3f} mm",
+        fontsize=12
+    )
+
+    # --------------------------------------------
+    # LEFT EDGE
+    # --------------------------------------------
+
+    ax.plot(
+        [
+            lens_d[0],
+            lens_d[0]
+        ],
+        [
+            ZF_slice_valid[0]
+            - nCT,
+            Z_slice_valid[0]
+        ],
+        linewidth=2
+    )
+
+    ax.text(
+        lens_d[0],
+        (
             (
-                A / 2.0 - XDEC,
-                -60,
-                safe_thickness_value(
-                    thickness,
-                    int(CENTER + A - 2 * XDEC),
-                    CENTER
-                )
-            ),
-            (
-                -A / 2.0 - XDEC,
-                -60,
-                safe_thickness_value(
-                    thickness,
-                    int(CENTER - A - 2 * XDEC),
-                    CENTER
-                )
+                ZF_slice_valid[0]
+                - nCT
             )
-        ])
+            + Z_slice_valid[0]
+        ) / 2,
+        f"  {left_edge_thickness:.3f}",
+        fontsize=10
+    )
 
-    else:
+    # --------------------------------------------
+    # RIGHT EDGE
+    # --------------------------------------------
 
-        text_locations.extend([
+    ax.plot(
+        [
+            lens_d[-1],
+            lens_d[-1]
+        ],
+        [
+            ZF_slice_valid[-1]
+            - nCT,
+            Z_slice_valid[-1]
+        ],
+        linewidth=2
+    )
+
+    ax.text(
+        lens_d[-1],
+        (
             (
-                A / 2.0 + XDEC,
-                -60,
-                safe_thickness_value(
-                    thickness,
-                    int(CENTER + A + 2 * XDEC),
-                    CENTER
-                )
-            ),
-            (
-                -A / 2.0 + XDEC,
-                -60,
-                safe_thickness_value(
-                    thickness,
-                    int(CENTER - A + 2 * XDEC),
-                    CENTER
-                )
+                ZF_slice_valid[-1]
+                - nCT
             )
-        ])
+            + Z_slice_valid[-1]
+        ) / 2,
+        f"  {right_edge_thickness:.3f}",
+        fontsize=10
+    )
 
-    for tx, ty, value in text_locations:
+    # --------------------------------------------
+    # GRAPH FORMATTING
+    # --------------------------------------------
 
-        ax.text(
-            tx,
-            ty,
-            f"{value:.3f}",
-            fontsize=13
+    eye_name = (
+        "Right"
+        if Eye == "R"
+        else "Left"
+    )
+
+    ax.set_title(
+        f"{eye_name} Eye — "
+        f"{angle_deg:.1f}° Slice"
+    )
+
+    ax.set_xlabel(
+        "Position Along Slice (mm)"
+    )
+
+    ax.set_ylabel(
+        "Surface Sag (mm)"
+    )
+
+    ax.axvline(
+        0,
+        linewidth=0.5,
+        alpha=0.4
+    )
+
+    ax.legend()
+
+    ax.grid(
+        alpha=0.2
+    )
+
+    fig.tight_layout()
+
+    st.pyplot(fig)
+
+    plt.close(fig)
+
+    # ========================================================
+    # THICKNESS PROFILE
+    # ========================================================
+
+    fig2, ax2 = plt.subplots(
+        figsize=(10, 3.5)
+    )
+
+    ax2.plot(
+        lens_d,
+        lens_thickness,
+        linewidth=2
+    )
+
+    ax2.fill_between(
+        lens_d,
+        lens_thickness,
+        alpha=0.15
+    )
+
+    ax2.set_title(
+        "Thickness Along Slice"
+    )
+
+    ax2.set_xlabel(
+        "Position Along Slice (mm)"
+    )
+
+    ax2.set_ylabel(
+        "Thickness (mm)"
+    )
+
+    ax2.axvline(
+        0,
+        linewidth=0.5,
+        alpha=0.4
+    )
+
+    ax2.grid(
+        alpha=0.2
+    )
+
+    fig2.tight_layout()
+
+    st.pyplot(fig2)
+
+    plt.close(fig2)
+
+    # ========================================================
+    # THICKNESS NUMBERS
+    # ========================================================
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+
+        st.metric(
+            "Center",
+            f"{center_thickness:.3f} mm"
         )
 
-    # --------------------------------------------------------
-    # VERTICAL SECTION
-    # --------------------------------------------------------
+    with c2:
 
-    ZBb_T = ZBb.T
-    Z_T = Z.T
-    ZF_T = ZF.T
+        st.metric(
+            "Minimum",
+            f"{minimum_thickness:.3f} mm"
+        )
 
-    ax.plot(
-        -x,
-        ZBb_T[CENTER] + (CT - nCT) - HALF_SIZE
-    )
+    with c3:
 
-    ax.plot(
-        x,
-        Z_T[CENTER] - HALF_SIZE
-    )
-
-    ax.plot(
-        -x,
-        ZF_T[CENTER] - nCT - HALF_SIZE
-    )
-
-    ax.plot(
-        np.full_like(x, B / 2.0 + YDEC),
-        XP + HALF_SIZE
-    )
-
-    ax.plot(
-        np.full_like(x, -B / 2.0 + YDEC),
-        XP + HALF_SIZE
-    )
-
-    ax.set_title(
-        f"{eye} Eye Cross Section"
-    )
-
-    ax.axis("equal")
-    ax.axis("off")
-
-    fig.tight_layout()
-
-    return fig
-
-
-def safe_thickness_value(array, i, j):
-
-    i = int(
-        np.clip(i, 0, GRID_SIZE - 1)
-    )
-
-    j = int(
-        np.clip(j, 0, GRID_SIZE - 1)
-    )
-
-    return float(array[i, j])
+        st.metric(
+            "Maximum",
+            f"{maximum_thickness:.3f} mm"
+        )
 
 
 # ============================================================
-# THICKNESS MAP
+# APP
 # ============================================================
 
-def plot_thickness_map(lens):
-
-    data = unpack_lens(lens)
-
-    eye = data["eye"]
-
-    thickness = calculate_thickness(lens)
-
-    fig, ax = plt.subplots(
-        figsize=(7, 7)
-    )
-
-    image = ax.imshow(
-        thickness,
-        extent=[
-            -HALF_SIZE,
-            HALF_SIZE,
-            -HALF_SIZE,
-            HALF_SIZE
-        ],
-        origin="lower",
-        aspect="equal"
-    )
-
-    ax.set_title(
-        f"{eye} Eye Thickness Map"
-    )
-
-    ax.set_xlabel("X (mm)")
-    ax.set_ylabel("Y (mm)")
-
-    fig.colorbar(
-        image,
-        ax=ax,
-        label="Thickness"
-    )
-
-    fig.tight_layout()
-
-    return fig
+st.write(
+    "# VU Lens Graph"
+)
 
 
 # ============================================================
-# 3D SURFACE
+# SLICE ANGLE
 # ============================================================
 
-def plot_3d_surface(
-    surface,
-    title,
-    stride=4
-):
+angle = st.slider(
+    "Slice Angle",
+    min_value=0.0,
+    max_value=180.0,
+    value=0.0,
+    step=1.0
+)
 
-    fig = plt.figure(
-        figsize=(9, 7)
-    )
 
-    ax = fig.add_subplot(
-        111,
-        projection="3d"
-    )
-
-    ax.plot_surface(
-        X,
-        Y,
-        surface,
-        rstride=stride,
-        cstride=stride,
-        linewidth=0
-    )
-
-    ax.set_title(title)
-
-    ax.set_xlabel("X (mm)")
-    ax.set_ylabel("Y (mm)")
-    ax.set_zlabel("Sag")
-
-    fig.tight_layout()
-
-    return fig
+# Show direction conceptually
+st.caption(
+    f"Viewing lens cross-section at {angle:.1f}°"
+)
 
 
 # ============================================================
-# PARAMETER TABLE
+# DEFAULT DATA
 # ============================================================
 
-SHOW_DATA = [
+Rx = {}
+
+Rx["HBOX"] = 50
+Rx["VBOX"] = 40
+Rx["XDEC"] = 0
+Rx["YDEC"] = 0
+Rx["FED"] = 58
+Rx["BCTHK"] = 8
+
+ZT = (
+    90
+    - np.sqrt(
+        90**2
+        - R**2
+    )
+)
+
+RightEye = (
+    "R",
+    Rx,
+    ZT,
+    ZT,
+    ZT,
+    2.5
+)
+
+LeftEye = (
+    "L",
+    Rx,
+    ZT,
+    ZT,
+    ZT,
+    2.5
+)
+
+
+# ============================================================
+# PARAMETERS TO DISPLAY
+# ============================================================
+
+showdat = [
     "IPD",
     "SPH",
     "CYL",
@@ -621,510 +798,108 @@ SHOW_DATA = [
 ]
 
 
-def create_parameter_table(
-    right_lens,
-    left_lens
-):
+# ============================================================
+# LOAD JOB
+# ============================================================
 
-    right_rx = unpack_lens(
-        right_lens
-    )["rx"]
+if "show" in st.session_state:
 
-    left_rx = unpack_lens(
-        left_lens
-    )["rx"]
+    jobv = st.session_state[
+        "show"
+    ]
 
-    rows = []
-
-    for key in SHOW_DATA:
-
-        if (
-            key not in right_rx
-            and key not in left_rx
-        ):
-            continue
-
-        right_value = right_rx.get(
-            key,
-            ""
+    RightEye, LeftEye = (
+        downloadjobs(
+            jobv
         )
+    )
 
-        left_value = left_rx.get(
-            key,
-            ""
-        )
+    RxDisplay = {}
 
-        if key == "CRIB":
+    for key in RightEye[1]:
 
-            try:
-                right_value = round(
-                    float(right_value),
+        if key in showdat:
+
+            if key == "CRIB":
+
+                RightEye[1][key] = round(
+                    RightEye[1][key],
                     2
                 )
 
-            except Exception:
-                pass
-
-            try:
-                left_value = round(
-                    float(left_value),
+                LeftEye[1][key] = round(
+                    LeftEye[1][key],
                     2
                 )
 
-            except Exception:
-                pass
+            RxDisplay[key] = (
+                str(
+                    RightEye[1][key]
+                )
+                + ", "
+                + str(
+                    LeftEye[1][key]
+                )
+            )
 
-        rows.append({
-            "Parameter": key,
-            "Right": right_value,
-            "Left": left_value
-        })
+else:
 
-    return pd.DataFrame(rows)
-
-
-# ============================================================
-# DEFAULT LENS DATA
-# ============================================================
-
-default_rx = {
-    "HBOX": 50,
-    "VBOX": 40,
-    "XDEC": 0,
-    "YDEC": 0,
-    "FED": 58,
-    "BCTHK": 8
-}
-
-default_right = (
-    "R",
-    default_rx.copy(),
-    ZT_DEFAULT.copy(),
-    ZT_DEFAULT.copy(),
-    ZT_DEFAULT.copy(),
-    2.5
-)
-
-default_left = (
-    "L",
-    default_rx.copy(),
-    ZT_DEFAULT.copy(),
-    ZT_DEFAULT.copy(),
-    ZT_DEFAULT.copy(),
-    2.5
-)
+    RxDisplay = {}
 
 
 # ============================================================
 # JOB INPUT
 # ============================================================
 
-with st.form("job_loader"):
-
-    col1, col2 = st.columns(
-        [4, 1]
-    )
-
-    with col1:
-
-        job_number = st.text_input(
-            "Job Number",
-            value=st.session_state.get(
-                "job_number",
-                ""
-            )
-        )
-
-    with col2:
-
-        st.write("")
-        st.write("")
-
-        submitted = (
-            st.form_submit_button(
-                "Load Job",
-                use_container_width=True
-            )
-        )
-
-
-if submitted:
-
-    if not job_number.strip():
-
-        st.warning(
-            "Enter a job number."
-        )
-
-    else:
-
-        try:
-
-            with st.spinner(
-                f"Loading job {job_number}..."
-            ):
-
-                right_eye, left_eye = (
-                    download_jobs(
-                        job_number.strip()
-                    )
-                )
-
-            st.session_state[
-                "right_eye"
-            ] = right_eye
-
-            st.session_state[
-                "left_eye"
-            ] = left_eye
-
-            st.session_state[
-                "job_number"
-            ] = job_number.strip()
-
-            st.success(
-                f"Loaded job {job_number}."
-            )
-
-        except Exception as exc:
-
-            st.error(
-                f"Could not load job: {exc}"
-            )
-
-
-# ============================================================
-# CURRENT JOB
-# ============================================================
-
-right_eye = st.session_state.get(
-    "right_eye",
-    default_right
+jobn = st.text_input(
+    "Job Number"
 )
 
-left_eye = st.session_state.get(
-    "left_eye",
-    default_left
+plot = st.button(
+    "Plot"
 )
 
 
-loaded_job = st.session_state.get(
-    "job_number"
+if plot:
+
+    st.session_state[
+        "show"
+    ] = jobn
+
+    st.rerun()
+
+
+# ============================================================
+# DISPLAY
+# ============================================================
+
+tab1, tab2, tab3 = st.tabs(
+    [
+        "RIGHT",
+        "LEFT",
+        "PRSC"
+    ]
 )
 
 
-if loaded_job:
+with tab1:
 
-    st.caption(
-        f"Current Job: {loaded_job}"
-    )
-
-else:
-
-    st.caption(
-        "Displaying default demonstration geometry."
+    SliceTk(
+        RightEye,
+        angle
     )
 
 
-# ============================================================
-# TABS
-# ============================================================
+with tab2:
 
-tab_overview, tab_right, tab_left, tab_thickness, tab_3d = (
-    st.tabs([
-        "Overview",
-        "Right Eye",
-        "Left Eye",
-        "Thickness",
-        "3D"
-    ])
-)
-
-
-# ============================================================
-# OVERVIEW
-# ============================================================
-
-with tab_overview:
-
-    right_stats = (
-        get_thickness_stats(
-            right_eye
-        )
-    )
-
-    left_stats = (
-        get_thickness_stats(
-            left_eye
-        )
-    )
-
-    st.subheader(
-        "Derived Geometry"
-    )
-
-    right_header, left_header = (
-        st.columns(2)
-    )
-
-    with right_header:
-
-        st.markdown(
-            "### Right Eye"
-        )
-
-        c1, c2 = st.columns(2)
-
-        c1.metric(
-            "Center Thickness",
-            f"{right_stats['center']:.3f}"
-        )
-
-        c2.metric(
-            "Minimum Thickness",
-            f"{right_stats['minimum']:.3f}"
-        )
-
-        c3, c4 = st.columns(2)
-
-        c3.metric(
-            "Maximum Thickness",
-            f"{right_stats['maximum']:.3f}"
-        )
-
-        c4.metric(
-            "Mean Thickness",
-            f"{right_stats['mean']:.3f}"
-        )
-
-
-    with left_header:
-
-        st.markdown(
-            "### Left Eye"
-        )
-
-        c1, c2 = st.columns(2)
-
-        c1.metric(
-            "Center Thickness",
-            f"{left_stats['center']:.3f}"
-        )
-
-        c2.metric(
-            "Minimum Thickness",
-            f"{left_stats['minimum']:.3f}"
-        )
-
-        c3, c4 = st.columns(2)
-
-        c3.metric(
-            "Maximum Thickness",
-            f"{left_stats['maximum']:.3f}"
-        )
-
-        c4.metric(
-            "Mean Thickness",
-            f"{left_stats['mean']:.3f}"
-        )
-
-    st.divider()
-
-    st.subheader(
-        "Job Parameters"
-    )
-
-    parameter_table = (
-        create_parameter_table(
-            right_eye,
-            left_eye
-        )
-    )
-
-    st.dataframe(
-        parameter_table,
-        use_container_width=True,
-        hide_index=True
+    SliceTk(
+        LeftEye,
+        angle
     )
 
 
-# ============================================================
-# RIGHT EYE
-# ============================================================
+with tab3:
 
-with tab_right:
-
-    st.subheader(
-        "Right Eye Cross Section"
+    st.write(
+        RxDisplay
     )
-
-    fig = plot_slice(
-        right_eye
-    )
-
-    st.pyplot(
-        fig,
-        use_container_width=True
-    )
-
-    plt.close(fig)
-
-
-# ============================================================
-# LEFT EYE
-# ============================================================
-
-with tab_left:
-
-    st.subheader(
-        "Left Eye Cross Section"
-    )
-
-    fig = plot_slice(
-        left_eye
-    )
-
-    st.pyplot(
-        fig,
-        use_container_width=True
-    )
-
-    plt.close(fig)
-
-
-# ============================================================
-# THICKNESS
-# ============================================================
-
-with tab_thickness:
-
-    col_r, col_l = st.columns(2)
-
-    with col_r:
-
-        fig = plot_thickness_map(
-            right_eye
-        )
-
-        st.pyplot(
-            fig,
-            use_container_width=True
-        )
-
-        plt.close(fig)
-
-    with col_l:
-
-        fig = plot_thickness_map(
-            left_eye
-        )
-
-        st.pyplot(
-            fig,
-            use_container_width=True
-        )
-
-        plt.close(fig)
-
-
-# ============================================================
-# 3D
-# ============================================================
-
-with tab_3d:
-
-    st.subheader(
-        "3D Lens Geometry"
-    )
-
-    surface_choice = st.selectbox(
-        "Surface",
-        [
-            "Designed Surface",
-            "Front Surface",
-            "Back Base",
-            "Thickness"
-        ]
-    )
-
-    col_r, col_l = st.columns(2)
-
-    right_data = unpack_lens(
-        right_eye
-    )
-
-    left_data = unpack_lens(
-        left_eye
-    )
-
-    if surface_choice == "Designed Surface":
-
-        right_surface = (
-            right_data["Z"]
-        )
-
-        left_surface = (
-            left_data["Z"]
-        )
-
-    elif surface_choice == "Front Surface":
-
-        right_surface = (
-            right_data["ZF"]
-        )
-
-        left_surface = (
-            left_data["ZF"]
-        )
-
-    elif surface_choice == "Back Base":
-
-        right_surface = (
-            right_data["ZBb"]
-        )
-
-        left_surface = (
-            left_data["ZBb"]
-        )
-
-    else:
-
-        right_surface = (
-            calculate_thickness(
-                right_eye
-            )
-        )
-
-        left_surface = (
-            calculate_thickness(
-                left_eye
-            )
-        )
-
-    with col_r:
-
-        fig = plot_3d_surface(
-            right_surface,
-            f"Right Eye — {surface_choice}"
-        )
-
-        st.pyplot(
-            fig,
-            use_container_width=True
-        )
-
-        plt.close(fig)
-
-    with col_l:
-
-        fig = plot_3d_surface(
-            left_surface,
-            f"Left Eye — {surface_choice}"
-        )
-
-        st.pyplot(
-            fig,
-            use_container_width=True
-        )
-
-        plt.close(fig)
