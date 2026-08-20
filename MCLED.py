@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
@@ -13,9 +14,198 @@ from numpy import array
 # ============================================================
 
 st.set_page_config(
-    page_title="VU Lens Graph",
+    page_title="Vision Unlimited Tools",
     layout="wide"
 )
+
+CALLERID_URL='https://vucallerid.streamlit.app'
+
+# ============================================================
+# LANDING PAGE / APP ROUTER
+# ============================================================
+
+if "vu_page" not in st.session_state:
+    st.session_state["vu_page"] = "home"
+
+
+def get_callerid_url():
+    """
+    Caller ID can be configured either in .streamlit/secrets.toml:
+
+        callerid_url = "https://YOUR-CALLERID-APP.streamlit.app"
+
+    or with an environment variable:
+
+        CALLERID_URL=https://YOUR-CALLERID-APP.streamlit.app
+    """
+
+    try:
+        secret_url = st.secrets.get(
+            "callerid_url",
+            ""
+        )
+    except Exception:
+        secret_url = ""
+
+    return (
+        str(secret_url).strip()
+        or os.getenv(
+            "CALLERID_URL",
+            ""
+        ).strip()
+    )
+
+
+if st.session_state["vu_page"] == "home":
+
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            max-width: 1050px;
+            padding-top: 4.5rem;
+        }
+
+        .vu-title {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 750;
+            margin-bottom: 0.2rem;
+        }
+
+        .vu-subtitle {
+            text-align: center;
+            font-size: 1.1rem;
+            opacity: 0.72;
+            margin-bottom: 2.6rem;
+        }
+
+        .vu-card {
+            border: 1px solid rgba(128,128,128,0.28);
+            border-radius: 18px;
+            padding: 2rem 1.6rem 1.45rem 1.6rem;
+            min-height: 195px;
+            text-align: center;
+            background: rgba(128,128,128,0.035);
+            margin-bottom: 0.9rem;
+        }
+
+        .vu-card-icon {
+            font-size: 2.6rem;
+            line-height: 1;
+            margin-bottom: 0.75rem;
+        }
+
+        .vu-card-title {
+            font-size: 1.55rem;
+            font-weight: 700;
+            margin-bottom: 0.45rem;
+        }
+
+        .vu-card-text {
+            font-size: 0.98rem;
+            opacity: 0.72;
+            line-height: 1.45;
+        }
+        </style>
+
+        <div class="vu-title">Vision Unlimited</div>
+        <div class="vu-subtitle">Select an application</div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    left_space, lens_col, caller_col, right_space = st.columns(
+        [0.35, 1, 1, 0.35],
+        gap="large"
+    )
+
+    with lens_col:
+
+        st.markdown(
+            """
+            <div class="vu-card">
+                <div class="vu-card-icon">◉</div>
+                <div class="vu-card-title">Lens Graph</div>
+                <div class="vu-card-text">
+                    Load a lens job, inspect lens geometry,
+                    thickness, prescription data, and rotated
+                    cross sections.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        if st.button(
+            "Open Lens Graph",
+            type="primary",
+            use_container_width=True,
+            key="open_lens_graph"
+        ):
+            st.session_state["vu_page"] = "lens_graph"
+            st.rerun()
+
+    with caller_col:
+
+        st.markdown(
+            """
+            <div class="vu-card">
+                <div class="vu-card-icon">☎</div>
+                <div class="vu-card-title">Caller ID</div>
+                <div class="vu-card-text">
+                    Open the Vision Unlimited live caller-ID
+                    viewer for active and missed calls.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        callerid_url = get_callerid_url()
+
+        if callerid_url:
+
+            st.link_button(
+                "Open Caller ID",
+                callerid_url,
+                type="primary",
+                use_container_width=True
+            )
+
+        else:
+
+            st.button(
+                "Open Caller ID",
+                disabled=True,
+                use_container_width=True,
+                key="callerid_not_configured"
+            )
+
+            st.caption(
+                "Add `callerid_url` to Streamlit secrets "
+                "to enable this link."
+            )
+
+    st.stop()
+
+
+# ============================================================
+# LENS GRAPH NAVIGATION
+# ============================================================
+
+home_col, _ = st.columns(
+    [1, 8]
+)
+
+with home_col:
+
+    if st.button(
+        "← Home",
+        use_container_width=True
+    ):
+        st.session_state["vu_page"] = "home"
+        st.rerun()
 
 
 # ============================================================
