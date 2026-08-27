@@ -216,7 +216,6 @@ with home_col:
 x = np.arange(-42.5, 43.0, 0.5)
 
 Y, X = np.meshgrid(x, x)
-Y = -Y
 
 R = np.sqrt(X**2 + Y**2)
 
@@ -267,14 +266,20 @@ def downloadjobs(jobname):
         "jobsrequest": [
             start,
             final
-        ]
+        ],
+        # Ask the server to retry SQL when an older processed job contains a
+        # fallback frame payload from a previous failed/missing trace lookup.
+        "refresh_frame_trace": True
     }
 
     response = requests.post(
         url,
         json=data,
-        auth=auth
+        auth=auth,
+        timeout=45
     )
+
+    response.raise_for_status()
 
     received = json.loads(
         response.content.decode(
@@ -729,13 +734,15 @@ def frame_slice_mask(lens, angle_deg, distance):
 
 
 # ============================================================
-# SMALL FRAME ORIENTATION DIAGRAM
+# FRAME CONTOUR + SLICE ORIENTATION
 # ============================================================
 
-def plot_frame_diagram(
+def draw_frame_diagram(
+    ax,
     lens,
     angle_deg
 ):
+    """Draw the frame contour and selected slice on an existing axis."""
     Eye, Rx, _, _, _, _, frame = unpack_lens(lens)
     polygon = frame_polygon(frame)
     theta = np.deg2rad(angle_deg)
@@ -755,8 +762,6 @@ def plot_frame_diagram(
     y1 = negative_distance * np.sin(theta)
     x2 = positive_distance * np.cos(theta)
     y2 = positive_distance * np.sin(theta)
-
-    fig, ax = plt.subplots(figsize=(5.2, 4.2))
 
     if polygon is not None:
         closed = np.vstack((polygon, polygon[0]))
@@ -817,172 +822,21 @@ def plot_frame_diagram(
     ax.set_ylim(float(np.min(all_y)) - margin, float(np.max(all_y)) + margin)
     ax.set_aspect("equal")
 
+    # This is intentionally display-only. The frame geometry used for the
+    # thickness calculation remains unchanged.
+    ax.invert_yaxis()
+
     eye_name = "Right" if Eye == "R" else "Left"
-    ax.set_title(f"{eye_name} frame — {angle_deg:.0f}°", fontsize=12)
+    ax.set_title(
+        f"{eye_name} frame contour + {angle_deg:.0f}° slice",
+        fontsize=12,
+        fontweight="bold"
+    )
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("y (mm)")
     ax.tick_params(labelsize=8)
     ax.grid(alpha=0.2)
     ax.legend(fontsize=7, loc="best")
-    fig.tight_layout()
-    return fig
-
-
-def plot_frame_thickness_map(lens):
-    """Plot finished thickness over only the traced frame interior."""
-    Eye, Rx, Z, _, ZF, nCT, frame = unpack_lens(lens)
-    thickness = np.asarray(nCT - ZF + Z, dtype=float)
-    inside_frame = frame_contains(lens, X, Y)
-
-    crib = float(Rx.get("CRIB", 85.0))
-    inside_blank = R <= crib / 2.0
-    valid = inside_frame & inside_blank & np.isfinite(thickness)
-
-    fig, ax = plt.subplots(figsize=(8.0, 5.8))
-    stats = {
-        "minimum": None,
-        "maximum": None,
-        "mean": None,
-        "minimum_x": None,
-        "minimum_y": None,
-        "grid_points": int(np.count_nonzero(valid)),
-    }
-
-    if np.any(valid):
-        display = np.where(valid, thickness, np.nan)
-        values = thickness[valid]
-        minimum = float(np.min(values))
-        maximum = float(np.max(values))
-        mean = float(np.mean(values))
-        minimum_index = int(np.nanargmin(display))
-        min_row, min_col = np.unravel_index(minimum_index, display.shape)
-        min_x = float(X[min_row, min_col])
-        min_y = float(Y[min_row, min_col])
-
-        stats.update(
-            {
-                "minimum": minimum,
-                "maximum": maximum,
-                "mean": mean,
-                "minimum_x": min_x,
-                "minimum_y": min_y,
-            }
-        )
-
-        if maximum - minimum < 1e-8:
-            image = ax.pcolormesh(
-                X,
-                Y,
-                np.ma.masked_invalid(display),
-                shading="auto",
-                cmap="viridis"
-            )
-        else:
-            levels = np.linspace(minimum, maximum, 18)
-            image = ax.contourf(
-                X,
-                Y,
-                np.ma.masked_invalid(display),
-                levels=levels,
-                cmap="viridis"
-            )
-
-        colorbar = fig.colorbar(image, ax=ax, pad=0.02)
-        colorbar.set_label("Thickness (mm)")
-        ax.scatter(
-            [min_x],
-            [min_y],
-            color="#ffef5a",
-            edgecolor="#111111",
-            marker="X",
-            s=85,
-            zorder=5
-        )
-        ax.annotate(
-            f"min {minimum:.3f} mm",
-            (min_x, min_y),
-            xytext=(7, 7),
-            textcoords="offset points",
-            fontsize=9,
-            fontweight="bold"
-        )
-    else:
-        ax.text(
-            0.5,
-            0.5,
-            "No frame area intersects the lens grid",
-            transform=ax.transAxes,
-            horizontalalignment="center",
-            verticalalignment="center"
-        )
-
-    polygon = frame_polygon(frame)
-    if polygon is not None:
-        closed = np.vstack((polygon, polygon[0]))
-        ax.plot(closed[:, 0], closed[:, 1], color="#b31b34", linewidth=2.2)
-    else:
-        A = float(Rx.get("HBOX", 50.0))
-        B = float(Rx.get("VBOX", 40.0))
-        x_offset = float(Rx.get("XDEC", 0.0))
-        if Eye == "L":
-            x_offset = -x_offset
-        y_offset = -float(Rx.get("YDEC", 0.0))
-        ax.plot(
-            np.array([-A / 2, A / 2, A / 2, -A / 2, -A / 2]) + x_offset,
-            np.array([-B / 2, -B / 2, B / 2, B / 2, -B / 2]) + y_offset,
-            color="#777777",
-            linestyle="--",
-            linewidth=2
-        )
-
-    ax.scatter([0], [0], color="white", edgecolor="black", s=35, zorder=5)
-    eye_name = "Right" if Eye == "R" else "Left"
-    ax.set_title(f"{eye_name} Eye — Thickness Inside Finished Frame")
-    ax.set_xlabel("x (mm)")
-    ax.set_ylabel("y (mm)")
-    ax.set_aspect("equal", adjustable="box")
-    ax.set_xlim(-42.5, 42.5)
-    ax.set_ylim(-42.5, 42.5)
-    ax.grid(alpha=0.15)
-    fig.tight_layout()
-    return fig, stats
-
-
-def render_frame_overview(lens, angle_deg):
-    """Render the real frame outline and its full two-dimensional thickness."""
-    _, _, _, _, _, _, frame = unpack_lens(lens)
-    frame_col, map_col = st.columns([1, 2])
-
-    with frame_col:
-        frame_fig = plot_frame_diagram(lens, angle_deg)
-        st.pyplot(frame_fig, use_container_width=True)
-        plt.close(frame_fig)
-
-        source = frame.get("source", "HBOX/VBOX/FED fallback")
-        point_count = int(frame.get("point_count", 0) or 0)
-        st.caption(
-            f"Boundary: {source} | frameid: {frame.get('frameid', 'unknown')} | "
-            f"trace points: {point_count:,} | "
-            f"angles: {frame.get('angle_source', 'not supplied')}"
-        )
-        if frame.get("warning"):
-            st.warning(frame["warning"])
-
-    with map_col:
-        map_fig, stats = plot_frame_thickness_map(lens)
-        st.pyplot(map_fig, use_container_width=True)
-        plt.close(map_fig)
-
-        if stats["minimum"] is not None:
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Frame Minimum", f"{stats['minimum']:.3f} mm")
-            m2.metric("Frame Maximum", f"{stats['maximum']:.3f} mm")
-            m3.metric("Frame Mean", f"{stats['mean']:.3f} mm")
-            st.caption(
-                f"Minimum location: x={stats['minimum_x']:.2f} mm, "
-                f"y={stats['minimum_y']:.2f} mm | "
-                f"tested grid points: {stats['grid_points']:,}"
-            )
 
 
 # ============================================================
@@ -1207,11 +1061,32 @@ def SliceTk(
     )
 
     # ========================================================
-    # LARGE CROSS-SECTION GRAPH
+    # COMBINED FRAME + CROSS-SECTION DISPLAY
     # ========================================================
 
-    fig, ax = plt.subplots(
-        figsize=(15, 7)
+    fig = plt.figure(
+        figsize=(16, 6.6),
+        constrained_layout=True
+    )
+
+    grid = fig.add_gridspec(
+        1,
+        2,
+        width_ratios=[1.05, 2.45]
+    )
+
+    frame_ax = fig.add_subplot(
+        grid[0, 0]
+    )
+
+    ax = fig.add_subplot(
+        grid[0, 1]
+    )
+
+    draw_frame_diagram(
+        frame_ax,
+        lens,
+        angle_deg
     )
 
     front_surface = (
@@ -1482,8 +1357,6 @@ def SliceTk(
         + x_margin
     )
 
-    fig.tight_layout()
-
     st.pyplot(
         fig,
         use_container_width=True
@@ -1493,12 +1366,19 @@ def SliceTk(
         fig
     )
 
+    source = frame.get("source", "HBOX/VBOX/FED fallback")
+    point_count = int(frame.get("point_count", 0) or 0)
+
     st.caption(
-        f"Boundary: {frame.get('source', 'HBOX/VBOX/FED fallback')}   |   "
-        f"negative edge = {frame_d[0]:.2f} mm   |   "
-        f"positive edge = {frame_d[-1]:.2f} mm   |   "
-        f"frameid = {frame.get('frameid', 'unknown')}"
+        f"Boundary: {source}   |   "
+        f"frameid: {frame.get('frameid', 'unknown')}   |   "
+        f"trace points: {point_count:,}   |   "
+        f"negative edge: {frame_d[0]:.2f} mm   |   "
+        f"positive edge: {frame_d[-1]:.2f} mm"
     )
+
+    if frame.get("warning"):
+        st.warning(frame["warning"])
 
 
 # ============================================================
@@ -1731,17 +1611,16 @@ else:
 # TABS
 # ============================================================
 
-tab1, tab2, tab3 = st.tabs(
+tab1, tab2 = st.tabs(
     [
-        "RIGHT",
-        "LEFT",
-        "PRSC"
+        "LENSES",
+        "PRESCRIPTION"
     ]
 )
 
 
 # ============================================================
-# RIGHT EYE
+# BOTH EYES
 # ============================================================
 
 with tab1:
@@ -1750,34 +1629,17 @@ with tab1:
         "Right Eye"
     )
 
-    render_frame_overview(
-        RightEye,
-        angle
-    )
-
-    # Full-width important graph
     SliceTk(
         RightEye,
         angle
     )
 
-
-# ============================================================
-# LEFT EYE
-# ============================================================
-
-with tab2:
+    st.divider()
 
     st.subheader(
         "Left Eye"
     )
 
-    render_frame_overview(
-        LeftEye,
-        angle
-    )
-
-    # Full-width important graph
     SliceTk(
         LeftEye,
         angle
@@ -1788,7 +1650,7 @@ with tab2:
 # PRESCRIPTION
 # ============================================================
 
-with tab3:
+with tab2:
 
     st.subheader(
         "Job Parameters"
