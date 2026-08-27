@@ -836,7 +836,6 @@ def draw_frame_diagram(
     ax.set_ylabel("y (mm)")
     ax.tick_params(labelsize=8)
     ax.grid(alpha=0.2)
-    ax.legend(fontsize=7, loc="best")
 
 
 # ============================================================
@@ -1336,11 +1335,6 @@ def SliceTk(
         alpha=0.2
     )
 
-    ax.legend(
-        fontsize=13,
-        loc="best"
-    )
-
     # Add margin so edge thickness labels don't get clipped
     x_margin = max(
         3,
@@ -1379,6 +1373,505 @@ def SliceTk(
 
     if frame.get("warning"):
         st.warning(frame["warning"])
+
+
+# ============================================================
+# COMPACT TWO-EYE DASHBOARD
+# ============================================================
+
+def thickness_contour_data(lens):
+    """Return masked finished thickness inside the usable frame."""
+    _, Rx, Z, _, ZF, nCT, _ = unpack_lens(lens)
+    thickness = np.asarray(
+        nCT - ZF + Z,
+        dtype=float
+    )
+
+    valid = frame_contains(
+        lens,
+        X,
+        Y
+    )
+
+    crib = float(
+        Rx.get(
+            "CRIB",
+            85.0
+        )
+    )
+
+    valid = (
+        valid
+        & (R <= crib / 2.0)
+        & np.isfinite(thickness)
+    )
+
+    return (
+        np.ma.masked_where(
+            ~valid,
+            thickness
+        ),
+        valid
+    )
+
+
+def draw_thickness_contour(
+    ax,
+    lens,
+    angle_deg,
+    levels
+):
+    """Draw thickness color, frame contour, and slice with no legend."""
+    Eye, _, _, _, _, _, _ = unpack_lens(lens)
+    display, valid = thickness_contour_data(lens)
+    filled = None
+
+    if np.any(valid):
+        filled = ax.contourf(
+            X,
+            Y,
+            display,
+            levels=levels,
+            cmap="viridis",
+            extend="both"
+        )
+
+        line_levels = levels[1:-1:2]
+        if len(line_levels):
+            ax.contour(
+                X,
+                Y,
+                display,
+                levels=line_levels,
+                colors="white",
+                linewidths=0.35,
+                alpha=0.45
+            )
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "No usable frame area",
+            transform=ax.transAxes,
+            horizontalalignment="center",
+            verticalalignment="center"
+        )
+
+    draw_frame_diagram(
+        ax,
+        lens,
+        angle_deg
+    )
+
+    eye_name = "Right" if Eye == "R" else "Left"
+    ax.set_title(
+        f"{eye_name} eye thickness contour",
+        fontsize=13,
+        fontweight="bold"
+    )
+    ax.set_facecolor("#f3f4f6")
+    return filled
+
+
+def calculate_slice_profile(
+    lens,
+    angle_deg
+):
+    """Calculate a traced-frame cross-section without rendering Streamlit UI."""
+    Eye, Rx, Z, ZBb, ZF, nCT, frame = unpack_lens(lens)
+
+    CT = float(
+        Rx.get(
+            "BCTHK",
+            nCT
+        )
+    )
+
+    d, xs, ys, Z_slice = get_rotated_slice(
+        Z,
+        angle_deg
+    )
+    _, _, _, ZF_slice = get_rotated_slice(
+        ZF,
+        angle_deg
+    )
+    _, _, _, ZBb_slice = get_rotated_slice(
+        ZBb,
+        angle_deg
+    )
+
+    thickness = np.asarray(
+        nCT - ZF_slice + Z_slice,
+        dtype=float
+    )
+
+    valid = frame_contains(
+        lens,
+        xs,
+        ys
+    )
+
+    crib = float(
+        Rx.get(
+            "CRIB",
+            85.0
+        )
+    )
+
+    valid = (
+        valid
+        & (np.sqrt(xs**2 + ys**2) <= crib / 2.0)
+        & np.isfinite(thickness)
+    )
+
+    if not np.any(valid):
+        return None
+
+    frame_d = d[valid]
+    frame_Z = Z_slice[valid]
+    frame_ZF = ZF_slice[valid]
+    frame_ZBb = ZBb_slice[valid]
+    frame_thickness = thickness[valid]
+
+    center_index = int(
+        np.argmin(
+            np.abs(frame_d)
+        )
+    )
+    min_index = int(
+        np.argmin(frame_thickness)
+    )
+    max_index = int(
+        np.argmax(frame_thickness)
+    )
+
+    return {
+        "eye": Eye,
+        "frame": frame,
+        "distance": frame_d,
+        "front_surface": frame_ZF - nCT,
+        "designed_surface": frame_Z,
+        "base_surface": frame_ZBb + (CT - nCT),
+        "thickness": frame_thickness,
+        "center_index": center_index,
+        "min_index": min_index,
+        "max_index": max_index,
+        "center_thickness": float(frame_thickness[center_index]),
+        "negative_edge_thickness": float(frame_thickness[0]),
+        "positive_edge_thickness": float(frame_thickness[-1]),
+        "minimum_thickness": float(frame_thickness[min_index]),
+        "maximum_thickness": float(frame_thickness[max_index]),
+    }
+
+
+def draw_slice_profile(
+    ax,
+    lens,
+    angle_deg,
+    profile
+):
+    """Draw a compact lens slice without a legend."""
+    Eye, _, _, _, _, _, _ = unpack_lens(lens)
+    eye_name = "Right" if Eye == "R" else "Left"
+
+    if profile is None:
+        ax.text(
+            0.5,
+            0.5,
+            "Slice does not intersect the usable frame area",
+            transform=ax.transAxes,
+            horizontalalignment="center",
+            verticalalignment="center"
+        )
+        ax.set_title(
+            f"{eye_name} eye slice — {angle_deg:.0f}°",
+            fontsize=11,
+            fontweight="bold"
+        )
+        ax.set_axis_off()
+        return
+
+    frame_d = profile["distance"]
+    front_surface = profile["front_surface"]
+    designed_surface = profile["designed_surface"]
+    base_surface = profile["base_surface"]
+
+    ax.plot(
+        frame_d,
+        front_surface,
+        color="#1769aa",
+        linewidth=2.2
+    )
+    ax.plot(
+        frame_d,
+        designed_surface,
+        color="#b31b34",
+        linewidth=2.2
+    )
+    ax.plot(
+        frame_d,
+        base_surface,
+        color="#6b7280",
+        linestyle="--",
+        linewidth=1.5
+    )
+    ax.fill_between(
+        frame_d,
+        front_surface,
+        designed_surface,
+        color="#1769aa",
+        alpha=0.12
+    )
+
+    marker_specs = (
+        (
+            profile["center_index"],
+            profile["center_thickness"],
+            "center"
+        ),
+        (
+            0,
+            profile["negative_edge_thickness"],
+            "negative edge"
+        ),
+        (
+            len(frame_d) - 1,
+            profile["positive_edge_thickness"],
+            "positive edge"
+        ),
+    )
+
+    for index, value, label in marker_specs:
+        x_value = frame_d[index]
+        front_value = front_surface[index]
+        back_value = designed_surface[index]
+        ax.plot(
+            [x_value, x_value],
+            [front_value, back_value],
+            color="#111827",
+            linewidth=1.5
+        )
+        ax.annotate(
+            f"{value:.3f}",
+            (
+                x_value,
+                (front_value + back_value) / 2.0
+            ),
+            xytext=(4, 0),
+            textcoords="offset points",
+            fontsize=8,
+            fontweight="bold",
+            verticalalignment="center"
+        )
+
+    min_index = profile["min_index"]
+    ax.scatter(
+        [frame_d[min_index]],
+        [designed_surface[min_index]],
+        color="#111827",
+        marker="x",
+        s=35,
+        linewidth=1.5,
+        zorder=5
+    )
+
+    ax.set_title(
+        (
+            f"{eye_name} eye slice — {angle_deg:.0f}°\n"
+            f"center {profile['center_thickness']:.3f}  |  "
+            f"edges {profile['negative_edge_thickness']:.3f} / "
+            f"{profile['positive_edge_thickness']:.3f}  |  "
+            f"range {profile['minimum_thickness']:.3f}–"
+            f"{profile['maximum_thickness']:.3f} mm"
+        ),
+        fontsize=10,
+        fontweight="bold"
+    )
+    ax.set_xlabel(
+        "Position through frame (mm)",
+        fontsize=9
+    )
+    ax.set_ylabel(
+        "Sag (mm)",
+        fontsize=9
+    )
+    ax.tick_params(
+        axis="both",
+        labelsize=8
+    )
+    ax.axvline(
+        0,
+        color="#111827",
+        linewidth=0.8,
+        alpha=0.35
+    )
+    ax.grid(alpha=0.18)
+
+    x_span = float(
+        frame_d[-1] - frame_d[0]
+    )
+    x_margin = max(
+        2.0,
+        x_span * 0.06
+    )
+    ax.set_xlim(
+        frame_d[0] - x_margin,
+        frame_d[-1] + x_margin
+    )
+
+
+def render_lens_dashboard(
+    right_eye,
+    left_eye,
+    angle_deg
+):
+    """Render both contour maps above two smaller slice plots."""
+    eyes = (
+        right_eye,
+        left_eye
+    )
+
+    contour_sets = [
+        thickness_contour_data(lens)
+        for lens in eyes
+    ]
+    valid_values = [
+        display.compressed()
+        for display, valid in contour_sets
+        if np.any(valid)
+    ]
+
+    if valid_values:
+        combined_values = np.concatenate(valid_values)
+        minimum = float(np.min(combined_values))
+        maximum = float(np.max(combined_values))
+        if maximum - minimum < 1e-6:
+            minimum -= 0.05
+            maximum += 0.05
+    else:
+        minimum = 0.0
+        maximum = 1.0
+
+    levels = np.linspace(
+        minimum,
+        maximum,
+        18
+    )
+
+    st.markdown(
+        "#### Thickness contours"
+    )
+
+    contour_fig, contour_axes = plt.subplots(
+        1,
+        2,
+        figsize=(15.5, 5.4),
+        constrained_layout=True
+    )
+    contour_images = []
+
+    for ax, lens in zip(
+        contour_axes,
+        eyes
+    ):
+        image = draw_thickness_contour(
+            ax,
+            lens,
+            angle_deg,
+            levels
+        )
+        if image is not None:
+            contour_images.append(image)
+
+    if contour_images:
+        colorbar = contour_fig.colorbar(
+            contour_images[0],
+            ax=list(contour_axes),
+            shrink=0.9,
+            pad=0.025
+        )
+        colorbar.set_label(
+            "Finished thickness (mm)",
+            fontsize=10
+        )
+        colorbar.ax.tick_params(
+            labelsize=8
+        )
+
+    st.pyplot(
+        contour_fig,
+        use_container_width=True
+    )
+    plt.close(contour_fig)
+
+    st.markdown(
+        "#### Cross-sections"
+    )
+
+    profiles = [
+        calculate_slice_profile(
+            lens,
+            angle_deg
+        )
+        for lens in eyes
+    ]
+
+    slice_fig, slice_axes = plt.subplots(
+        1,
+        2,
+        figsize=(15.5, 3.6),
+        constrained_layout=True
+    )
+
+    for ax, lens, profile in zip(
+        slice_axes,
+        eyes,
+        profiles
+    ):
+        draw_slice_profile(
+            ax,
+            lens,
+            angle_deg,
+            profile
+        )
+
+    st.pyplot(
+        slice_fig,
+        use_container_width=True
+    )
+    plt.close(slice_fig)
+
+    detail_columns = st.columns(
+        2,
+        gap="large"
+    )
+
+    for detail_column, lens in zip(
+        detail_columns,
+        eyes
+    ):
+        Eye, _, _, _, _, _, frame = unpack_lens(lens)
+        eye_name = "Right" if Eye == "R" else "Left"
+        source = frame.get(
+            "source",
+            "HBOX/VBOX/FED fallback"
+        )
+        point_count = int(
+            frame.get(
+                "point_count",
+                0
+            )
+            or 0
+        )
+
+        with detail_column:
+            st.caption(
+                f"{eye_name}: {source} | "
+                f"frameid: {frame.get('frameid', 'unknown')} | "
+                f"trace points: {point_count:,}"
+            )
+            if frame.get("warning"):
+                st.warning(frame["warning"])
 
 
 # ============================================================
@@ -1625,22 +2118,8 @@ tab1, tab2 = st.tabs(
 
 with tab1:
 
-    st.subheader(
-        "Right Eye"
-    )
-
-    SliceTk(
+    render_lens_dashboard(
         RightEye,
-        angle
-    )
-
-    st.divider()
-
-    st.subheader(
-        "Left Eye"
-    )
-
-    SliceTk(
         LeftEye,
         angle
     )
