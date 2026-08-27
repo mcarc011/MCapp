@@ -216,6 +216,7 @@ with home_col:
 x = np.arange(-42.5, 43.0, 0.5)
 
 Y, X = np.meshgrid(x, x)
+Y = -Y
 
 R = np.sqrt(X**2 + Y**2)
 
