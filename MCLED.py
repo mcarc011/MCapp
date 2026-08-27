@@ -1425,6 +1425,7 @@ def draw_thickness_contour(
     Eye, _, _, _, _, _, _ = unpack_lens(lens)
     display, valid = thickness_contour_data(lens)
     filled = None
+    minimum_point = None
 
     if np.any(valid):
         filled = ax.contourf(
@@ -1447,6 +1448,19 @@ def draw_thickness_contour(
                 linewidths=0.35,
                 alpha=0.45
             )
+
+        minimum_index = int(
+            np.ma.argmin(display)
+        )
+        minimum_row, minimum_column = np.unravel_index(
+            minimum_index,
+            display.shape
+        )
+        minimum_point = (
+            float(X[minimum_row, minimum_column]),
+            float(Y[minimum_row, minimum_column]),
+            float(display[minimum_row, minimum_column])
+        )
     else:
         ax.text(
             0.5,
@@ -1462,6 +1476,35 @@ def draw_thickness_contour(
         lens,
         angle_deg
     )
+
+    if minimum_point is not None:
+        minimum_x, minimum_y, minimum_thickness = minimum_point
+        ax.scatter(
+            [minimum_x],
+            [minimum_y],
+            color="#ffef5a",
+            edgecolor="#111827",
+            marker="X",
+            s=85,
+            linewidth=1.0,
+            zorder=8
+        )
+        ax.annotate(
+            f"Thinnest: {minimum_thickness:.3f} mm",
+            (minimum_x, minimum_y),
+            xytext=(8, 8),
+            textcoords="offset points",
+            fontsize=8,
+            fontweight="bold",
+            color="#111827",
+            bbox={
+                "boxstyle": "round,pad=0.25",
+                "facecolor": "white",
+                "edgecolor": "#111827",
+                "alpha": 0.9
+            },
+            zorder=9
+        )
 
     eye_name = "Right" if Eye == "R" else "Left"
     ax.set_title(
@@ -1727,8 +1770,8 @@ def render_lens_dashboard(
 ):
     """Render both contour maps above two smaller slice plots."""
     eyes = (
-        right_eye,
-        left_eye
+        left_eye,
+        right_eye
     )
 
     contour_sets = [
