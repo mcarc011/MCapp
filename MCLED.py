@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-CALLERID_URL='https://vucallerid.streamlit.app'
+CALLERID_URL='https://vumessaging.ngrok.io/inbox/#calls'
 
 # ============================================================
 # LANDING PAGE / APP ROUTER
@@ -30,31 +30,8 @@ if "vu_page" not in st.session_state:
 
 
 def get_callerid_url():
-    """
-    Caller ID can be configured either in .streamlit/secrets.toml:
-
-        callerid_url = "https://YOUR-CALLERID-APP.streamlit.app"
-
-    or with an environment variable:
-
-        CALLERID_URL=https://YOUR-CALLERID-APP.streamlit.app
-    """
-
-    try:
-        secret_url = st.secrets.get(
-            "callerid_url",
-            ""
-        )
-    except Exception:
-        secret_url = ""
-
-    return (
-        str(secret_url).strip()
-        or os.getenv(
-            "CALLERID_URL",
-            ""
-        ).strip()
-    )
+    """Open the standalone workspace, independent of retired Streamlit links."""
+    return CALLERID_URL
 
 
 if st.session_state["vu_page"] == "home":
@@ -155,8 +132,8 @@ if st.session_state["vu_page"] == "home":
                 <div class="vu-card-icon">☎</div>
                 <div class="vu-card-title">Caller ID</div>
                 <div class="vu-card-text">
-                    Open the Vision Unlimited live caller-ID
-                    viewer for active and missed calls.
+                    Open live calls, missed calls and patient details
+                    in the Vision Unlimited workspace.
                 </div>
             </div>
             """,
